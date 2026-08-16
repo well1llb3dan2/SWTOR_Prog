@@ -2,7 +2,20 @@ import { z } from "zod";
 
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PORT: z.coerce.number().int().positive().default(3001),
+  PORT: z.preprocess(
+    (value) => {
+      if (value === undefined || value === "") return 3001;
+      if (typeof value === "number") return Number.isInteger(value) && value > 0 ? value : 3001;
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed === "") return 3001;
+        const parsed = Number(trimmed);
+        return Number.isInteger(parsed) && parsed > 0 ? parsed : 3001;
+      }
+      return 3001;
+    },
+    z.number().int().positive().default(3001),
+  ),
   HOST: z.string().default("0.0.0.0"),
   /** Shared secret desktop clients present on the ingest namespace. */
   INGEST_TOKEN: z.string().min(16),

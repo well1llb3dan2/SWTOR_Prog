@@ -21,6 +21,10 @@ describe("auditProductionSafety", () => {
     expect(auditProductionSafety(production())).toEqual([]);
   });
 
+  it("falls back to the default port when PORT is blank", () => {
+    expect(loadConfig({ ...production(), PORT: "", INGEST_TOKEN: "a-genuinely-long-random-ingest-token" }).port).toBe(3001);
+  });
+
   it("ignores development entirely so local runs stay frictionless", () => {
     const dev = loadConfig({ INGEST_TOKEN: "test-token-that-is-long-enough" });
     expect(auditProductionSafety(dev)).toEqual([]);
