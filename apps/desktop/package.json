@@ -1,0 +1,28 @@
+{
+  "name": "@swtor/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main.mjs",
+  "scripts": {
+    "build:main": "esbuild src/main.ts --bundle --platform=node --format=esm --target=node20 --external:electron --outfile=dist/main.mjs",
+    "build:preload": "esbuild src/preload.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist/preload.cjs",
+    "build:renderer": "esbuild src/renderer/index.html src/renderer/app.js --outdir=dist/renderer --loader:.html=copy --loader:.js=copy",
+    "build": "pnpm build:main && pnpm build:preload && pnpm build:renderer",
+    "package": "pnpm build && electron-builder --config electron-builder.yml --publish never",
+    "release": "pnpm build && electron-builder --config electron-builder.yml --publish always",
+    "start": "electron .",
+    "dev": "pnpm build && electron .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@swtor/parser": "workspace:*",
+    "@swtor/shared": "workspace:*",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2"
+  }
+}

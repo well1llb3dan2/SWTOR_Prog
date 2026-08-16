@@ -1,0 +1,23 @@
+{
+  "name": "@swtor/bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/bot.mjs --external:discord.js --external:zod",
+    "start": "node dist/bot.mjs",
+    "dev": "pnpm build && node --watch dist/bot.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@swtor/analytics": "workspace:*",
+    "@swtor/game-data": "workspace:*",
+    "@swtor/shared": "workspace:*",
+    "discord.js": "^14.17.3",
+    "socket.io-client": "^4.8.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}

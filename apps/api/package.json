@@ -1,0 +1,31 @@
+{
+  "name": "@swtor/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/server.mjs --external:fastify --external:@fastify/* --external:socket.io --external:mongodb --external:zod",
+    "dev": "pnpm build && node --watch dist/server.mjs",
+    "start": "node dist/server.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/helmet": "^13.0.1",
+    "@fastify/rate-limit": "^10.2.2",
+    "@swtor/analytics": "workspace:*",
+    "@swtor/db": "workspace:*",
+    "@swtor/game-data": "workspace:*",
+    "@swtor/shared": "workspace:*",
+    "fastify": "^5.2.1",
+    "mongodb": "^6.13.0",
+    "socket.io": "^4.8.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2",
+    "socket.io-client": "^4.8.1"
+  }
+}

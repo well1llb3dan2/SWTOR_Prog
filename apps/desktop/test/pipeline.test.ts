@@ -1,0 +1,220 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { CombatEvent, MagnitudeValue } from "@swtor/shared";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventBatcher } from "../src/core/batcher.js";
+import { OfflineQueue } from "../src/core/offlineQueue.js";
+import { ReplaySource } from "../src/core/replay.js";
+import { defaultSettings, redactSettings } from "../src/core/settings.js";
+
+const temporaryDirs: string[] = [];
+
+const magnitude = (amount: number): MagnitudeValue => ({
+  kind: "magnitude",
+  amount,
+  effective: amount,
+  critical: false,
+  damageType: "energy",
+  mitigation: null,
+  absorbed: null,
+  reflected: false,
+});
+
+const event = (n: number): CombatEvent => ({
+  timestamp: n,
+  lineNumber: n,
+  source: null,
+  target: null,
+  ability: null,
+  threat: null,
+  type: "damage",
+  value: magnitude(1),
+});
+
+afterEach(async () => {
+  vi.useRealTimers();
+  for (const dir of temporaryDirs.splice(0)) {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+describe("EventBatcher", () => {
+  it("flushes as soon as the size threshold is reached", () => {
+    const onFlush = vi.fn();
+    const batcher = new EventBatcher({ maxEvents: 3, onFlush });
+
+    batcher.add([event(1), event(2)]);
+    expect(onFlush).not.toHaveBeenCalled();
+
+    batcher.add([event(3)]);
+    expect(onFlush).toHaveBeenCalledOnce();
+    expect(onFlush.mock.calls[0]![0]).toHaveLength(3);
+    expect(batcher.pendingCount).toBe(0);
+  });
+
+  it("flushes a partial batch once the delay elapses", () => {
+    vi.useFakeTimers();
+    const onFlush = vi.fn();
+    const batcher = new EventBatcher({ maxEvents: 50, maxDelayMs: 1_000, onFlush });
+
+    batcher.add([event(1)]);
+    vi.advanceTimersByTime(999);
+    expect(onFlush).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(2);
+    expect(onFlush).toHaveBeenCalledOnce();
+  });
+
+  it("never emits an empty batch", () => {
+    const onFlush = vi.fn();
+    const batcher = new EventBatcher({ onFlush });
+    batcher.flush();
+    expect(onFlush).not.toHaveBeenCalled();
+  });
+
+  it("drops pending events when stopped", () => {
+    const onFlush = vi.fn();
+    const batcher = new EventBatcher({ maxEvents: 50, onFlush });
+    batcher.add([event(1)]);
+    batcher.stop();
+    expect(batcher.pendingCount).toBe(0);
+    expect(onFlush).not.toHaveBeenCalled();
+  });
+});
+
+describe("OfflineQueue", () => {
+  it("preserves order", () => {
+    const queue = new OfflineQueue();
+    queue.push({ sequence: 0, events: [event(1)] });
+    queue.push({ sequence: 1, events: [event(2)] });
+
+    expect(queue.shift()?.sequence).toBe(0);
+    expect(queue.shift()?.sequence).toBe(1);
+  });
+
+  // A long outage during a raid must not grow memory without bound.
+  it("drops the oldest batches once the event ceiling is passed", () => {
+    const queue = new OfflineQueue(5);
+    queue.push({ sequence: 0, events: [event(1), event(2), event(3)] });
+    queue.push({ sequence: 1, events: [event(4), event(5), event(6)] });
+
+    expect(queue.size).toBe(1);
+    expect(queue.peek()?.sequence).toBe(1);
+    expect(queue.droppedEvents).toBe(3);
+  });
+
+  it("keeps the newest batch even when it alone exceeds the ceiling", () => {
+    const queue = new OfflineQueue(2);
+    queue.push({ sequence: 0, events: [event(1), event(2), event(3), event(4)] });
+
+    expect(queue.size).toBe(1);
+    expect(queue.peek()?.sequence).toBe(0);
+  });
+
+  it("tracks the pending event count", () => {
+    const queue = new OfflineQueue();
+    queue.push({ sequence: 0, events: [event(1), event(2)] });
+    expect(queue.eventCount).toBe(2);
+    queue.shift();
+    expect(queue.eventCount).toBe(0);
+  });
+});
+
+describe("settings", () => {
+  it("never exposes the ingest token to the renderer", () => {
+    const redacted = redactSettings({ ...defaultSettings(), token: "super-secret" });
+    expect(redacted).not.toHaveProperty("token");
+    expect(redacted.hasToken).toBe(true);
+    expect(JSON.stringify(redacted)).not.toContain("super-secret");
+  });
+
+  it("reports when no token has been configured", () => {
+    expect(redactSettings(defaultSettings()).hasToken).toBe(false);
+  });
+});
+
+describe("ReplaySource", () => {
+  const realLog = fileURLToPath(
+    new URL("../../../samples/combat-logs/combat_2026-08-15_22_48_11_971003.txt", import.meta.url),
+  );
+
+  /** Small synthetic log so the clock tests do not re-parse 150k lines. */
+  async function tinyLog(): Promise<string> {
+    const dir = await mkdtemp(join(tmpdir(), "swtor-replay-"));
+    const name = "combat_2026-08-15_21_00_00_000000.txt";
+    const lines = Array.from(
+      { length: 60 },
+      (_, i) =>
+        `[21:00:${String(i).padStart(2, "0")}.000] [@A#1|(0,0,0,0)|(1/1)] [] [] ` +
+        `[Event {836045448945472}: AbilityActivate {836045448945479}]`,
+    );
+    const path = join(dir, name);
+    await writeFile(path, `${lines.join("\n")}\n`, "utf8");
+    temporaryDirs.push(dir);
+    return path;
+  }
+
+  // Parses ~150k real log lines, so it needs more than the default budget.
+  it("loads a real operation log", async () => {
+    const replay = new ReplaySource({ filePath: realLog, onEvents: vi.fn() });
+    const total = await replay.load();
+
+    expect(total).toBeGreaterThan(100_000);
+    expect(replay.fileName).toBe("combat_2026-08-15_22_48_11_971003.txt");
+  }, 30_000);
+
+  // Releasing events on the log's own clock is what makes replay exercise pull
+  // detection the same way a live raid does.
+  it("releases events on the log clock rather than all at once", async () => {
+    const emitted: number[] = [];
+    const replay = new ReplaySource({
+      filePath: await tinyLog(),
+      speed: 1,
+      tickMs: 1_000,
+      onEvents: (events) => emitted.push(events.length),
+    });
+    await replay.load();
+
+    replay.tick();
+    replay.tick();
+
+    const total = emitted.reduce((a, b) => a + b, 0);
+    expect(total).toBeGreaterThan(0);
+    expect(total).toBeLessThan(replay.totalEvents);
+  });
+
+  it("emits proportionally more at higher speed", async () => {
+    const path = await tinyLog();
+    const count = async (speed: number) => {
+      let emitted = 0;
+      const replay = new ReplaySource({
+        filePath: path,
+        speed,
+        tickMs: 1_000,
+        onEvents: (events) => (emitted += events.length),
+      });
+      await replay.load();
+      replay.tick();
+      return emitted;
+    };
+
+    expect(await count(10)).toBeGreaterThan(await count(1));
+  });
+
+  it("signals completion once the log is exhausted", async () => {
+    const onDone = vi.fn();
+    const replay = new ReplaySource({
+      filePath: await tinyLog(),
+      speed: 100,
+      tickMs: 1_000,
+      onEvents: vi.fn(),
+      onDone,
+    });
+    await replay.load();
+
+    for (let i = 0; i < 50 && onDone.mock.calls.length === 0; i += 1) replay.tick();
+    expect(onDone).toHaveBeenCalled();
+  });
+});

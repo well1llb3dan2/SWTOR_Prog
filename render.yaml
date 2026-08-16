@@ -1,0 +1,100 @@
+# Render blueprint. Secrets are marked sync:false so they are set in the
+# dashboard rather than committed; the API refuses to start in production if
+# any of them still hold an example value.
+services:
+  - type: web
+    name: swtor-api
+    runtime: node
+    plan: starter
+    region: ohio
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @swtor/api build
+    startCommand: node apps/api/dist/server.mjs
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOST
+        value: 0.0.0.0
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: MONGODB_DB
+        value: swtor
+      - key: DEFAULT_GUILD_ID
+        value: infamous
+      # Raw combat events are the bulk of storage; summaries are never expired.
+      - key: RETENTION_DAYS
+        value: "180"
+      - key: CORS_ORIGINS
+        sync: false
+      - key: PUBLIC_API_URL
+        sync: false
+      - key: WEB_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: INGEST_TOKEN
+        sync: false
+      - key: FEED_TOKEN
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_GUILD_ID
+        sync: false
+      - key: DISCORD_MODERATOR_ROLE_IDS
+        sync: false
+      - key: DISCORD_MEMBER_ROLE_IDS
+        sync: false
+
+  - type: web
+    name: swtor-web
+    runtime: node
+    plan: starter
+    region: ohio
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @swtor/web build
+    startCommand: pnpm --filter @swtor/web start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+
+  # A worker rather than a web service: the bot holds outbound connections and
+  # has no inbound HTTP surface to health check.
+  - type: worker
+    name: swtor-bot
+    runtime: node
+    plan: starter
+    region: ohio
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @swtor/bot build
+    startCommand: node apps/bot/dist/bot.mjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: CLOSE_WIPE_PERCENT
+        value: "15"
+      - key: BOSSES_ONLY
+        value: "true"
+      - key: API_URL
+        sync: false
+      - key: WEB_URL
+        sync: false
+      - key: FEED_TOKEN
+        sync: false
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: PROGRESSION_CHANNEL_ID
+        sync: false
+      - key: SIGNUP_CHANNEL_ID
+        sync: false

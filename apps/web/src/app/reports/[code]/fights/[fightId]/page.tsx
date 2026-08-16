@@ -1,0 +1,118 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { DeathTimeline } from "@/components/DeathTimeline";
+import { MeterTable } from "@/components/MeterTable";
+import { fetchDeaths, fetchReport } from "@/lib/api";
+import { formatCompact, formatDuration, formatPercent } from "@/lib/format";
+import { METRICS, buildRows, type MetricKey } from "@/lib/meters";
+
+export default async function FightPage({
+  params,
+}: {
+  params: Promise<{ code: string; fightId: string }>;
+}) {
+  const { code, fightId } = await params;
+  const id = Number(fightId);
+
+  const [{ data: report, error }, { data: audits }] = await Promise.all([
+    fetchReport(code),
+    fetchDeaths(code, id),
+  ]);
+
+  if (error !== null) {
+    return <p className="panel rounded-md px-4 py-3 text-sm text-red-300">{error}</p>;
+  }
+  if (report === null) notFound();
+
+  const fight = report.fights.find((f) => f.fightId === id);
+  if (fight === undefined) notFound();
+
+  // The stored actor totals use the analytics field names, not the wire ones.
+  const actors = fight.actors.map((actor) => ({
+    ...actor,
+    totalDamage: actor.damage,
+    totalHealing: actor.healing,
+    totalDamageTaken: actor.damageTaken,
+  }));
+
+  return (
+    <main className="space-y-6">
+      <header>
+        <Link
+          href={`/reports/${code}`}
+          className="text-xs uppercase tracking-[0.3em] text-[var(--color-gold)] hover:underline"
+        >
+          ← {report.zone ?? "Report"}
+        </Link>
+        <h1 className="mt-1 text-2xl uppercase">
+          {fight.encounter?.encounterName ?? fight.boss?.name ?? "Trash pull"}
+        </h1>
+        <p className="mt-1 text-xs text-[var(--color-muted)]">
+          Pull {fight.fightId} · {formatDuration(fight.durationMs)} · {fight.outcome}
+          {fight.boss !== null && fight.outcome !== "kill"
+            ? ` · boss ended at ${formatPercent(fight.boss.hpPercent, 1)}`
+            : ""}
+        </p>
+      </header>
+
+      {fight.encounter !== null && fight.encounter.phases.length > 0 ? (
+        <section className="panel rounded-md p-5">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+            {fight.encounter.operationName} · phases
+          </h2>
+          <ol className="mt-3 space-y-2">
+            {fight.encounter.phases.map((phase) => (
+              <li key={phase.order} className="flex gap-3 text-sm">
+                <span className="tabular text-[var(--color-muted)]">{phase.order}</span>
+                <span className="min-w-0">
+                  <span className="block">{phase.name}</span>
+                  <span className="block text-xs text-[var(--color-muted)]">
+                    {phase.style} · {phase.trigger}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        {(Object.keys(METRICS) as MetricKey[]).map((metric) => (
+          <section key={metric} className="panel overflow-hidden rounded-md">
+            <h2 className="border-b border-[var(--color-line)] px-4 py-3 text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+              {METRICS[metric].label}
+            </h2>
+            <MeterTable
+              rows={buildRows(actors, metric)}
+              metric={metric}
+              unit={METRICS[metric].unit}
+            />
+          </section>
+        ))}
+      </div>
+
+      <section className="space-y-4">
+        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
+          Death log · {fight.deaths.length} death{fight.deaths.length === 1 ? "" : "s"}
+        </h2>
+
+        {audits === null ? (
+          <p className="panel rounded-md px-6 py-10 text-center text-sm text-[var(--color-muted)]">
+            Raw events for this pull are no longer stored, so the death timeline is unavailable.
+          </p>
+        ) : audits.deaths.length === 0 ? (
+          <p className="panel rounded-md px-6 py-10 text-center text-sm text-[var(--color-muted)]">
+            Nobody died. {formatCompact(fight.actors.reduce((s, a) => s + a.damage, 0))} damage, no
+            casualties.
+          </p>
+        ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {audits.deaths.map((audit, index) => (
+              <DeathTimeline key={`${audit.playerId}-${index}`} audit={audit} />
+            ))}
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}

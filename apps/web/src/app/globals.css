@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --color-void: #070d0a;
+  --color-panel: #0d1712;
+  --color-line: #1c2f26;
+  --color-ink: #d9e8e0;
+  --color-muted: #7b968a;
+  --color-republic: #4ade80;
+  --color-gold: #d4af37;
+
+  --font-display: "Rajdhani", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Noto Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+:root {
+  --accent-tank: #60a5fa;
+  --accent-healer: #4ade80;
+  --accent-dps: #d4af37;
+  --accent-unknown: #7b968a;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% -10%, rgba(74, 222, 128, 0.07), transparent 55%),
+    radial-gradient(circle at 85% 0%, rgba(212, 175, 55, 0.05), transparent 45%), var(--color-void);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+}
+
+/* Blueprint grid overlay, kept faint so it reads as texture. */
+.blueprint::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(74, 222, 128, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74, 222, 128, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 0%, black, transparent 75%);
+}
+
+.panel {
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  border: 1px solid var(--color-line);
+  backdrop-filter: blur(6px);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}

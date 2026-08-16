@@ -1,0 +1,31 @@
+appId: gg.infamous.swtor.streamer
+productName: SWTOR Combat Streamer
+copyright: Infamous
+
+directories:
+  output: release
+  buildResources: build
+
+# Only the bundled output ships; src and node_modules are already inlined by
+# esbuild, so the installer stays small.
+files:
+  - dist/**/*
+  - package.json
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Signing needs a certificate in CSC_LINK / CSC_KEY_PASSWORD. Without them
+  # the build still succeeds, it is simply unsigned.
+  signingHashAlgorithms: [sha256]
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+publish:
+  provider: github
+  releaseType: release
