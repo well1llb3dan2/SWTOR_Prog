@@ -76,7 +76,7 @@ services:
     plan: starter
     region: ohio
     buildCommand: pnpm install --frozen-lockfile && pnpm --filter @swtor/bot build
-    startCommand: node apps/bot/dist/bot.mjs
+    startCommand: node apps/bot/dist/bot.cjs
     envVars:
       - key: NODE_ENV
         value: production

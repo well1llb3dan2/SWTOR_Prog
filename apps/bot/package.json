@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --target=node22 --outfile=dist/bot.mjs --external:discord.js --external:zod",
-    "start": "node dist/bot.mjs",
-    "dev": "pnpm build && node --watch dist/bot.mjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/bot.cjs --external:discord.js --external:zod",
+    "start": "node dist/bot.cjs",
+    "dev": "pnpm build && node --watch dist/bot.cjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
