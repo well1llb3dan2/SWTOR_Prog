@@ -22,6 +22,8 @@ export default async function OperationsPage() {
   }
   if (reports === null) notFound();
 
+  const safeReports = Array.isArray(reports) ? reports : [];
+
   return (
     <main className="space-y-6">
       <header>
@@ -94,7 +96,7 @@ export default async function OperationsPage() {
       <section className="panel rounded-md p-5">
         <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Recent reports</h2>
         <ul className="mt-3 space-y-2">
-          {reports.slice(0, 4).map((report) => (
+          {safeReports.slice(0, 4).map((report) => (
             <li key={report.code} className="flex items-center justify-between rounded border border-[var(--color-line)] px-3 py-3 text-sm">
               <span>{report.zone ?? "Unknown zone"}</span>
               <span className="text-xs uppercase tracking-[0.12em] text-[var(--color-muted)]">

@@ -97,18 +97,51 @@ import { API_BASE_URL } from "./apiBase";
 
 const API_URL = API_BASE_URL;
 
-async function get<T>(path: string): Promise<{ data: T | null; error: string | null }> {
+async function get<T>(path: string, options: { expectArray?: boolean } = {}): Promise<{ data: T | null; error: string | null }> {
   try {
     const response = await fetch(`${API_URL}${path}`, { cache: "no-store" });
     if (response.status === 404) return { data: null, error: null };
     if (!response.ok) return { data: null, error: `API returned ${response.status}` };
-    return { data: (await response.json()) as T, error: null };
+
+    const payload = await response.json().catch(() => null);
+
+    if (payload === null || typeof payload !== "object") {
+      return { data: null, error: "API returned an invalid response" };
+    }
+
+    const wrapped = payload as Record<string, unknown>;
+    const nestedArray =
+      Array.isArray(wrapped.data) ? wrapped.data :
+      Array.isArray(wrapped.reports) ? wrapped.reports :
+      Array.isArray(wrapped.items) ? wrapped.items : null;
+
+    if (options.expectArray) {
+      if (Array.isArray(payload)) {
+        return { data: payload as T, error: null };
+      }
+      if (nestedArray !== null) {
+        return { data: nestedArray as T, error: null };
+      }
+      if (typeof wrapped.error === "string") {
+        return { data: null, error: wrapped.error };
+      }
+      if (typeof wrapped.message === "string") {
+        return { data: null, error: wrapped.message };
+      }
+      return { data: null, error: "API returned an unexpected response" };
+    }
+
+    if (Array.isArray(payload)) {
+      return { data: null, error: "API returned an unexpected response" };
+    }
+
+    return { data: payload as T, error: null };
   } catch {
     return { data: null, error: "Could not reach the API" };
   }
 }
 
-export const fetchReports = (limit = 50) => get<ReportDetail[]>(`/api/reports?limit=${limit}`);
+export const fetchReports = (limit = 50) => get<ReportDetail[]>(`/api/reports?limit=${limit}`, { expectArray: true });
 
 export const fetchReport = (code: string) => get<ReportDetail>(`/api/reports/${code}`);
 

@@ -11,7 +11,8 @@ export default async function ProgressionPage() {
   }
   if (reports === null) notFound();
 
-  const bossFights = reports.flatMap((report) =>
+  const safeReports = Array.isArray(reports) ? reports : [];
+  const bossFights = safeReports.flatMap((report) =>
     report.fights.filter((fight) => fight.boss?.isLikelyBoss === true),
   );
 
