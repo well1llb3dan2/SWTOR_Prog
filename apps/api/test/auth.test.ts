@@ -20,6 +20,19 @@ const config = loadConfig({
   WEB_URL: "http://localhost:3000",
 });
 
+const secureConfig = loadConfig({
+  INGEST_TOKEN: "test-token-that-is-long-enough",
+  LOG_LEVEL: "silent",
+  SESSION_SECRET,
+  DISCORD_CLIENT_ID: "client-id",
+  DISCORD_CLIENT_SECRET: "client-secret",
+  DISCORD_GUILD_ID: "guild-1",
+  DISCORD_MODERATOR_ROLE_IDS: "mod-role",
+  DISCORD_MEMBER_ROLE_IDS: "member-role",
+  WEB_URL: "https://swtor-web.onrender.com",
+  COOKIE_SECURE: "true",
+});
+
 const DISCORD_USER = {
   id: "424242",
   username: "twistle",
@@ -138,6 +151,28 @@ describe("resolveMembership", () => {
 });
 
 describe("sign-in", () => {
+  it("uses cross-site cookie settings when secure cookies are enabled", async () => {
+    const secureServer = await buildServer({
+      config: secureConfig,
+      store: new MemoryReportStore(),
+      accounts,
+      operations: new MemoryOperationStore(),
+      realtime: false,
+      fetchImpl: fakeFetch,
+    });
+
+    try {
+      const response = await secureServer.app.inject({ method: "GET", url: "/auth/discord" });
+      const setCookie = Array.isArray(response.headers["set-cookie"])
+        ? response.headers["set-cookie"].join(";")
+        : (response.headers["set-cookie"] ?? "");
+      expect(setCookie).toContain("SameSite=None");
+      expect(setCookie).toContain("Secure");
+    } finally {
+      await secureServer.close();
+    }
+  });
+
   it("redirects to Discord with a signed state", async () => {
     const response = await server.app.inject({ method: "GET", url: "/auth/discord" });
     const location = new URL(response.headers.location as string);

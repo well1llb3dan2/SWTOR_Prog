@@ -42,7 +42,7 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
 
   const cookieOptions = {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: (config.cookieSecure ? "none" : "lax") as "none" | "lax",
     secure: config.cookieSecure,
     path: "/",
     signed: true,
