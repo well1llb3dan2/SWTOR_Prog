@@ -115,6 +115,26 @@ describe("scheduling", () => {
     expect(response.json().limits).toEqual({ tanks: 4, healers: 4, dps: 8 });
   });
 
+  it("derives defaults from the operation catalog when a known operation is selected", async () => {
+    const response = await server.app.inject({
+      method: "POST",
+      url: "/api/operations",
+      headers: { cookie: sessionCookie("mod-1") },
+      payload: {
+        operationId: "snv",
+        encounterId: "snv_dashroode",
+        scheduledFor: tomorrow(),
+        groupSize: 8,
+        difficulty: "Veteran",
+      },
+    });
+
+    expect(response.statusCode).toBe(201);
+    expect(response.json().operationId).toBe("snv");
+    expect(response.json().encounterId).toBe("snv_dashroode");
+    expect(response.json().title).toContain("Scum and Villainy");
+  });
+
   it("rejects a time in the past", async () => {
     const response = await createOperation({
       scheduledFor: new Date(Date.now() - 60 * 60 * 1000).toISOString(),

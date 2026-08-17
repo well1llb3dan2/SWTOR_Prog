@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { API_BASE_URL } from "@/lib/apiBase";
 
 const NAV_LINKS = [
   { href: "/", label: "Home" },
@@ -17,6 +18,30 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
+  const [me, setMe] = useState<{ username?: string } | null>(null);
+
+  useEffect(() => {
+    const loadSession = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/me`, { credentials: "include" });
+        if (!response.ok) {
+          setMe(null);
+          return;
+        }
+        const body = (await response.json()) as { user: { username?: string } | null };
+        setMe(body.user ?? null);
+      } catch {
+        setMe(null);
+      }
+    };
+
+    void loadSession();
+  }, []);
+
+  const signOut = async () => {
+    await fetch(`${API_BASE_URL}/auth/logout`, { method: "GET", credentials: "include" });
+    window.location.assign("/me");
+  };
 
   return (
     <header className="mb-6 rounded-md border border-[var(--color-line)] bg-black/25 px-5 py-4 backdrop-blur">
@@ -54,6 +79,23 @@ export function SiteHeader() {
             <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-republic)]" />
             Live telemetry online
           </div>
+
+          {me !== null ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              className="rounded border border-[var(--color-line)] px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+            >
+              Sign out
+            </button>
+          ) : (
+            <Link
+              href="/me"
+              className="rounded border border-[var(--color-line)] px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--color-muted)] transition hover:text-[var(--color-ink)]"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </div>
 

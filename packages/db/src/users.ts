@@ -21,6 +21,12 @@ export interface ApiTokenRecord {
   revokedAt: Date | null;
 }
 
+export interface SignupPreferences {
+  preferredRole: "tank" | "healer" | "dps" | "bench" | "declined" | null;
+  notes: string | null;
+  availabilityWindow: string | null;
+}
+
 export interface UserDocument extends Tenanted {
   discordId: string;
   username: string;
@@ -32,6 +38,7 @@ export interface UserDocument extends Tenanted {
   isMember: boolean;
   characters: LinkedCharacter[];
   tokens: ApiTokenRecord[];
+  signupPreferences: SignupPreferences;
   createdAt: Date;
   updatedAt: Date;
   lastLoginAt: Date;
@@ -61,6 +68,7 @@ export interface PublicUser {
   isMember: boolean;
   characters: LinkedCharacter[];
   tokens: Omit<ApiTokenRecord, "hash">[];
+  signupPreferences: SignupPreferences;
 }
 
 export function toPublicUser(user: UserDocument): PublicUser {
@@ -72,6 +80,7 @@ export function toPublicUser(user: UserDocument): PublicUser {
     isModerator: user.isModerator,
     isMember: user.isMember,
     characters: user.characters,
+    signupPreferences: user.signupPreferences,
     tokens: user.tokens
       .filter((token) => token.revokedAt === null)
       .map(({ hash: _hash, ...rest }) => rest),

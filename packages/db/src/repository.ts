@@ -103,7 +103,12 @@ export class SwtorDatabase {
           lastLoginAt: now,
         },
         // Characters and tokens belong to the user, not to the login.
-        $setOnInsert: { characters: [], tokens: [], createdAt: now },
+        $setOnInsert: {
+          characters: [],
+          tokens: [],
+          signupPreferences: { preferredRole: null, notes: null, availabilityWindow: null },
+          createdAt: now,
+        },
       },
       { upsert: true, returnDocument: "after" },
     );
@@ -163,6 +168,14 @@ export class SwtorDatabase {
     await this.users.updateOne(
       { discordId },
       { $pull: { characters: { playerId } }, $set: { updatedAt: new Date() } },
+    );
+  }
+
+  async updatePreferences(discordId: string, preferences: Partial<UserDocument["signupPreferences"]>): Promise<UserDocument | null> {
+    return this.users.findOneAndUpdate(
+      { discordId },
+      { $set: { signupPreferences: { preferredRole: null, notes: null, availabilityWindow: null, ...preferences }, updatedAt: new Date() } },
+      { returnDocument: "after" },
     );
   }
 

@@ -6,6 +6,7 @@ import {
   type IssuedToken,
   type LinkCodeDocument,
   type LinkedCharacter,
+  type SignupPreferences,
   type SwtorDatabase,
   type UserDocument,
 } from "@swtor/db";
@@ -42,6 +43,7 @@ export interface AccountStore {
   consumeLinkCode(code: string): Promise<LinkCodeDocument | null>;
   /** Characters that appeared in reports this user uploaded. */
   charactersSeenBy(guildId: string, discordId: string): Promise<SeenCharacter[]>;
+  updatePreferences(discordId: string, preferences: SignupPreferences): Promise<UserDocument | null>;
 }
 
 export class MongoAccountStore implements AccountStore {
@@ -81,6 +83,10 @@ export class MongoAccountStore implements AccountStore {
   async charactersSeenBy(guildId: string, discordId: string): Promise<SeenCharacter[]> {
     const reports = await this.db.reports.find({ guildId, ownerUserId: discordId }).toArray();
     return dedupeRoster(reports.flatMap((report) => report.roster));
+  }
+
+  async updatePreferences(discordId: string, preferences: SignupPreferences) {
+    return this.db.updatePreferences(discordId, preferences);
   }
 }
 
@@ -218,5 +224,13 @@ export class MemoryAccountStore implements AccountStore {
 
   async charactersSeenBy(_guildId: string, discordId: string): Promise<SeenCharacter[]> {
     return this.#seen.get(discordId) ?? [];
+  }
+
+  async updatePreferences(discordId: string, preferences: SignupPreferences) {
+    const user = this.#users.get(discordId);
+    if (user === undefined) return null;
+    user.signupPreferences = { ...user.signupPreferences, ...preferences };
+    user.updatedAt = new Date();
+    return user;
   }
 }

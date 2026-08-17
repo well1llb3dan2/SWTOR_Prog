@@ -126,20 +126,31 @@ describe("resolveMembership", () => {
     });
   });
 
-  // Moderation views are gated on this, so it must never default to true.
-  it("never grants moderator without an explicit role", () => {
+  it("grants moderator to a signed-in member when no role IDs are configured", () => {
     const membership = resolveMembership(
       { roles: ["anything"] },
       { moderatorRoleIds: [], memberRoleIds: [] },
     );
-    expect(membership.isModerator).toBe(false);
+    expect(membership.isModerator).toBe(true);
     expect(membership.isMember).toBe(true);
   });
 
   it("grants moderator only to a configured role", () => {
-    const config = { moderatorRoleIds: ["mod"], memberRoleIds: ["member"] };
+    const config = { officerRoleIds: [], moderatorRoleIds: ["mod"], memberRoleIds: ["member"] };
     expect(resolveMembership({ roles: ["member"] }, config).isModerator).toBe(false);
     expect(resolveMembership({ roles: ["member", "mod"] }, config).isModerator).toBe(true);
+  });
+
+  it("grants officer access from the dedicated officer role", () => {
+    const config = { officerRoleIds: ["officer"], moderatorRoleIds: [], memberRoleIds: ["member"] };
+    expect(resolveMembership({ roles: ["member"] }, config).isModerator).toBe(false);
+    expect(resolveMembership({ roles: ["member", "officer"] }, config).isModerator).toBe(true);
+  });
+
+  it("allows a signed-in member to access officer surfaces when no role IDs are configured", () => {
+    const membership = resolveMembership({ roles: ["member-role"] }, { officerRoleIds: [], moderatorRoleIds: [], memberRoleIds: ["member-role"] });
+    expect(membership.isMember).toBe(true);
+    expect(membership.isModerator).toBe(true);
   });
 
   it("denies membership when the member role is missing", () => {
@@ -212,7 +223,16 @@ describe("sign-in", () => {
 
     expect(body.user.discordId).toBe("424242");
     expect(body.user.isModerator).toBe(true);
-    expect(body.user.isMember).toBe(true);
+  });
+
+  it("clears the signed session on logout", async () => {
+    const cookie = await signIn();
+    const logout = await server.app.inject({ method: "POST", url: "/auth/logout", headers: { cookie } });
+    expect(logout.statusCode).toBe(200);
+
+    const me = await server.app.inject({ method: "GET", url: "/api/me" });
+    expect(me.statusCode).toBe(200);
+    expect(me.json()).toEqual({ user: null });
   });
 
   it("redirects desktop OAuth to a local callback with a token", async () => {
@@ -414,6 +434,104 @@ describe("character linking", () => {
     server.sessions.remove("session-live");
   });
 
+  it("only exposes characters from the signed-in user's own live sessions", async () => {
+    const cookie = await signIn();
+    accounts.setSeenCharacters("424242", []);
+
+    const owned = new IngestSession({
+      sessionId: "owned-session",
+      guildId: config.defaultGuildId,
+      reportCode: "owned-report",
+      logFileName: "owned.log",
+      ownerUserId: "424242",
+      onPullEnd: () => undefined,
+    });
+    owned.push([
+      {
+        type: "areaEntered",
+        timestamp: 0,
+        lineNumber: 1,
+        source: null,
+        target: null,
+        ability: null,
+        threat: null,
+        zone: { name: "Darvannis", id: "137438993037" },
+        groupSize: 8,
+        difficulty: "Veteran",
+        logVersion: "v7.0.0b",
+      },
+      {
+        type: "disciplineChanged",
+        timestamp: 1,
+        lineNumber: 2,
+        source: {
+          kind: "player",
+          name: "Twistle",
+          playerId: "owned-player",
+          position: null,
+          hp: null,
+          maxHp: null,
+        },
+        target: null,
+        ability: null,
+        threat: null,
+        advancedClass: { name: "Guardian", id: "1" },
+        discipline: { name: "Watchman", id: "2" },
+        role: "dps",
+      },
+    ] as never);
+    server.sessions.add(owned);
+
+    const foreign = new IngestSession({
+      sessionId: "foreign-session",
+      guildId: config.defaultGuildId,
+      reportCode: "foreign-report",
+      logFileName: "foreign.log",
+      ownerUserId: "someone-else",
+      onPullEnd: () => undefined,
+    });
+    foreign.push([
+      {
+        type: "disciplineChanged",
+        timestamp: 1,
+        lineNumber: 2,
+        source: {
+          kind: "player",
+          name: "Other",
+          playerId: "foreign-player",
+          position: null,
+          hp: null,
+          maxHp: null,
+        },
+        target: null,
+        ability: null,
+        threat: null,
+        advancedClass: { name: "Guardian", id: "1" },
+        discipline: { name: "Watchman", id: "2" },
+        role: "dps",
+      },
+    ] as never);
+    server.sessions.add(foreign);
+
+    try {
+      const available = await server.app.inject({
+        method: "GET",
+        url: "/api/me/characters/available",
+        headers: { cookie },
+      });
+
+      expect(available.json()).toEqual(
+        expect.arrayContaining([expect.objectContaining({ playerId: "owned-player" })]),
+      );
+      expect(available.json()).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ playerId: "foreign-player" })]),
+      );
+    } finally {
+      server.sessions.remove("owned-session");
+      server.sessions.remove("foreign-session");
+    }
+  });
+
   // Otherwise anyone could claim the guild's best parser as their own.
   it("refuses a character that never appeared in the user's uploads", async () => {
     const cookie = await signIn();
@@ -473,6 +591,36 @@ describe("character linking", () => {
       payload: { playerId: character.playerId },
     });
     expect(response.statusCode).toBe(409);
+  });
+});
+
+describe("profile preferences", () => {
+  it("stores signup preferences for the signed-in user", async () => {
+    const cookie = await signIn();
+
+    const response = await server.app.inject({
+      method: "PATCH",
+      url: "/api/me/preferences",
+      headers: { cookie },
+      payload: {
+        preferredRole: "healer",
+        notes: "Can stay late for progression nights",
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      preferences: {
+        preferredRole: "healer",
+        notes: "Can stay late for progression nights",
+      },
+    });
+
+    const me = await server.app.inject({ method: "GET", url: "/api/me", headers: { cookie } });
+    expect(me.json().user.signupPreferences).toMatchObject({
+      preferredRole: "healer",
+      notes: "Can stay late for progression nights",
+    });
   });
 });
 

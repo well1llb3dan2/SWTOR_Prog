@@ -23,34 +23,99 @@ export default function HomePage() {
       lastSeenAt?: number;
     }>;
   } | null>(null);
+  const [opsSummary, setOpsSummary] = useState<{
+    nextTitle?: string | null;
+    nextTime?: string | null;
+    upcomingCount: number;
+    totalSignups: number;
+  } | null>(null);
+  const [reportSummary, setReportSummary] = useState<{
+    latestTitle?: string | null;
+    killCount: number;
+    fightCount: number;
+  } | null>(null);
+  const [me, setMe] = useState<{ isModerator?: boolean } | null>(null);
 
   useEffect(() => {
     const refresh = async () => {
       try {
-        const response = await fetch(`${API_URL}/api/me/stream/status`, { credentials: "include" });
-        if (!response.ok) return;
-        const body = (await response.json()) as {
-          active: boolean;
-          sessionId?: string | null;
-          reportCode?: string | null;
-          sessions?: Array<{
-            sessionId: string;
+        const [streamResponse, operationsResponse, reportsResponse, meResponse] = await Promise.all([
+          fetch(`${API_URL}/api/me/stream/status`, { credentials: "include" }),
+          fetch(`${API_URL}/api/operations`, { credentials: "include" }),
+          fetch(`${API_URL}/api/reports`, { credentials: "include" }),
+          fetch(`${API_URL}/api/me`, { credentials: "include" }),
+        ]);
+
+        if (streamResponse.ok) {
+          const body = (await streamResponse.json()) as {
+            active: boolean;
+            sessionId?: string | null;
             reportCode?: string | null;
-            logFileName?: string | null;
-            eventsReceived?: number;
-            lastSeenAt?: number;
+            sessions?: Array<{
+              sessionId: string;
+              reportCode?: string | null;
+              logFileName?: string | null;
+              eventsReceived?: number;
+              lastSeenAt?: number;
+            }>;
+          };
+          setStreamStatus(body);
+        } else {
+          setStreamStatus(null);
+        }
+
+        if (operationsResponse.ok) {
+          const operations = (await operationsResponse.json()) as Array<{
+            title: string;
+            scheduledFor: string;
+            signups?: Array<{ discordUserId: string }>;
           }>;
-        };
-        setStreamStatus(body);
+          const upcoming = [...operations].sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
+          const next = upcoming[0];
+          setOpsSummary({
+            nextTitle: next?.title ?? null,
+            nextTime: next ? new Date(next.scheduledFor).toLocaleString("en-GB", { timeZone: "America/New_York", dateStyle: "medium", timeStyle: "short" }) : null,
+            upcomingCount: upcoming.length,
+            totalSignups: upcoming.reduce((sum, event) => sum + (event.signups?.length ?? 0), 0),
+          });
+        } else {
+          setOpsSummary(null);
+        }
+
+        if (reportsResponse.ok) {
+          const reports = (await reportsResponse.json()) as Array<{
+            zone?: string | null;
+            fightCount?: number;
+            killCount?: number;
+          }>;
+          const latest = reports[0];
+          setReportSummary({
+            latestTitle: latest?.zone ?? null,
+            killCount: latest?.killCount ?? 0,
+            fightCount: latest?.fightCount ?? 0,
+          });
+        } else {
+          setReportSummary(null);
+        }
+
+        if (meResponse.ok) {
+          const meBody = (await meResponse.json()) as { user?: { isModerator?: boolean } | null };
+          setMe(meBody.user ?? null);
+        } else {
+          setMe(null);
+        }
       } catch {
         setStreamStatus(null);
+        setOpsSummary(null);
+        setReportSummary(null);
+        setMe(null);
       }
     };
 
     void refresh();
     const interval = window.setInterval(() => {
       void refresh();
-    }, 5_000);
+    }, 10_000);
 
     return () => window.clearInterval(interval);
   }, []);
@@ -128,21 +193,44 @@ export default function HomePage() {
 
       <section className="grid gap-3 md:grid-cols-3">
         <div className="panel rounded-md p-4">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Raid tempo</p>
-          <p className="mt-2 text-2xl uppercase">Stable</p>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">Recent pulls are converting into cleaner follow-up attempts.</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Next mission</p>
+          <p className="mt-2 text-lg uppercase">{opsSummary?.nextTitle ?? "No mission queued"}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            {opsSummary?.nextTime ?? "Signups will appear as soon as operations are created."}
+          </p>
         </div>
         <div className="panel rounded-md p-4">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Priority focus</p>
-          <p className="mt-2 text-2xl uppercase">Burst windows</p>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">The next gains should come from cleaner execute timing.</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Upcoming operations</p>
+          <p className="mt-2 text-2xl uppercase">{opsSummary?.upcomingCount ?? 0}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">{opsSummary ? `${opsSummary.totalSignups} responses logged across the current queue.` : "No operations available yet."}</p>
         </div>
         <div className="panel rounded-md p-4">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Guild posture</p>
-          <p className="mt-2 text-2xl uppercase">Ready</p>
-          <p className="mt-1 text-sm text-[var(--color-muted)]">Roster and mission briefs are aligned for the next push.</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Recent report</p>
+          <p className="mt-2 text-lg uppercase">{reportSummary?.latestTitle ?? "No report yet"}</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">
+            {reportSummary ? `${reportSummary.killCount}/${reportSummary.fightCount} kills` : "Stream a mission to create the first report."}
+          </p>
         </div>
       </section>
+
+      {me?.isModerator ? (
+        <section className="rounded-md border border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-republic)]">Officer command desk</p>
+              <p className="mt-1 text-lg uppercase">Keep roster planning and mission coordination in sync</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link href="/operations/builder" className="rounded border border-[var(--color-republic)] px-3 py-2 text-xs uppercase tracking-[0.12em] text-[var(--color-republic)]">
+                Open builder
+              </Link>
+              <Link href="/calendar" className="rounded border border-[var(--color-line)] px-3 py-2 text-xs uppercase tracking-[0.12em] text-[var(--color-muted)]">
+                Review calendar
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="panel rounded-md p-6">
         <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Mission lanes</h2>

@@ -80,7 +80,7 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
   }
 
   app.get("/api/me", async (request) => {
-    const discordId = readSession(request);
+    const discordId = currentDiscordId(request);
     if (discordId === null) return { user: null };
     const user = await accounts.findUserByDiscordId(discordId);
     return { user: user === null ? null : toPublicUser(user) };
@@ -192,9 +192,13 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     }
   });
 
-  app.post("/auth/logout", async (_request, reply) =>
-    reply.clearCookie(SESSION_COOKIE, cookieOptions).send({ ok: true }),
-  );
+  const clearSessionCookie = (_request: FastifyRequest, reply: FastifyReply) => {
+    reply.clearCookie(SESSION_COOKIE, { ...cookieOptions, expires: new Date(0), maxAge: 0 });
+    return { ok: true };
+  };
+
+  app.get("/auth/logout", async (request, reply) => clearSessionCookie(request, reply));
+  app.post("/auth/logout", async (request, reply) => clearSessionCookie(request, reply));
 
   app.post("/api/me/tokens", async (request, reply) => {
     const user = await requireUser(request, reply);
@@ -223,7 +227,9 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     if (user === null) return reply;
 
     const uploaded = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
-    const live = sessions.list().flatMap((session) => session.characters(Date.now()));
+    const live = sessions.list()
+      .filter((session) => session.ownerUserId === user.discordId)
+      .flatMap((session) => session.characters(Date.now()));
     const available = dedupeCharacters([...uploaded, ...live]);
     const linked = new Set(user.characters.map((c) => c.playerId));
     return available.filter((character) => !linked.has(character.playerId));
@@ -265,7 +271,9 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     // uploaded, or in one of their active live sessions. Without that anyone
     // could claim the guild's best parser.
     const uploaded = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
-    const live = sessions.list().flatMap((session) => session.characters(Date.now()));
+    const live = sessions.list()
+      .filter((session) => session.ownerUserId === user.discordId)
+      .flatMap((session) => session.characters(Date.now()));
     const seen = dedupeCharacters([...uploaded, ...live]);
     const character = seen.find((c) => c.playerId === body.playerId);
     if (character === undefined) {
@@ -288,6 +296,22 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const { playerId } = z.object({ playerId: z.string().min(1).max(32) }).parse(request.params);
     await accounts.unlinkCharacter(user.discordId, playerId);
     return { ok: true };
+  });
+
+  app.patch("/api/me/preferences", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (user === null) return reply;
+
+    const body = z
+      .object({
+        preferredRole: z.enum(["tank", "healer", "dps", "bench", "declined"]).nullable().optional(),
+        notes: z.string().max(500).nullable().optional(),
+        availabilityWindow: z.string().max(120).nullable().optional(),
+      })
+      .parse(request.body ?? {});
+
+    const updated = await accounts.updatePreferences(user.discordId, body);
+    return { ok: true, preferences: updated?.signupPreferences ?? user.signupPreferences };
   });
 
   /** Called by the bot when a member runs `/link`. */

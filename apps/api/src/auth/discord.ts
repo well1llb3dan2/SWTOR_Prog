@@ -16,6 +16,7 @@ export interface OAuthConfig {
   clientSecret: string;
   redirectUri: string;
   guildId: string;
+  officerRoleIds: string[];
   moderatorRoleIds: string[];
   memberRoleIds: string[];
 }
@@ -117,6 +118,9 @@ export interface Membership {
   roles: string[];
 }
 
+const explicitRoleConfig = (config: Pick<OAuthConfig, "officerRoleIds" | "moderatorRoleIds">) =>
+  (config.officerRoleIds ?? []).length > 0 || (config.moderatorRoleIds ?? []).length > 0;
+
 /**
  * Maps Discord roles onto portal permissions.
  *
@@ -126,15 +130,19 @@ export interface Membership {
  */
 export function resolveMembership(
   member: DiscordGuildMember | null,
-  config: Pick<OAuthConfig, "moderatorRoleIds" | "memberRoleIds">,
+  config: Pick<OAuthConfig, "officerRoleIds" | "moderatorRoleIds" | "memberRoleIds">,
 ): Membership {
   if (member === null) return { isMember: false, isModerator: false, roles: [] };
 
   const roles = member.roles ?? [];
-  const isMember =
-    config.memberRoleIds.length === 0 || roles.some((r) => config.memberRoleIds.includes(r));
-  const isModerator =
-    config.moderatorRoleIds.length > 0 && roles.some((r) => config.moderatorRoleIds.includes(r));
+  const officerRoleIds = (config.officerRoleIds ?? []).length > 0
+    ? (config.officerRoleIds ?? [])
+    : (config.moderatorRoleIds ?? []);
+  const memberRoleIds = config.memberRoleIds ?? [];
+  const isMember = memberRoleIds.length === 0 || roles.some((r) => memberRoleIds.includes(r));
+  const isModerator = explicitRoleConfig(config)
+    ? roles.some((r) => officerRoleIds.includes(r))
+    : isMember;
 
   return { isMember, isModerator, roles };
 }

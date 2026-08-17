@@ -1,4 +1,5 @@
 import type { OperationEventDocument } from "@swtor/db";
+import { ENCOUNTERS, OPERATIONS } from "@swtor/game-data";
 import {
   defaultLimits,
   describeOpenSlots,
@@ -28,7 +29,7 @@ const limits = z.object({
 });
 
 const createBody = z.object({
-  title: z.string().min(1).max(120),
+  title: z.string().min(1).max(120).optional(),
   description: z.string().max(1_000).nullable().default(null),
   scheduledFor: z.coerce.date(),
   difficulty: difficulty.nullable().default(null),
@@ -106,9 +107,20 @@ export function registerOperationRoutes(app: FastifyInstance, deps: OperationRou
       return reply.code(400).send({ error: "that time is in the past" });
     }
 
+    const operation = body.operationId === null || body.operationId === undefined
+      ? null
+      : OPERATIONS.find((candidate) => candidate.id === body.operationId) ?? null;
+    const encounter = body.encounterId === null || body.encounterId === undefined
+      ? null
+      : ENCOUNTERS.find((candidate) => candidate.id === body.encounterId) ?? null;
+
+    const inferredTitle = operation !== null
+      ? `${operation.name}${encounter !== null ? ` · ${encounter.name}` : ""}`
+      : body.title ?? "Operation";
+
     const event = await operations.create({
       guildId: config.defaultGuildId,
-      title: body.title,
+      title: body.title ?? inferredTitle,
       description: body.description,
       encounterId: body.encounterId,
       operationId: body.operationId,

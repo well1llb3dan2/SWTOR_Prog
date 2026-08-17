@@ -15,6 +15,12 @@ interface Character {
   role: "tank" | "healer" | "dps" | null;
 }
 
+interface SignupPreferences {
+  preferredRole: "tank" | "healer" | "dps" | "bench" | "declined" | null;
+  notes: string | null;
+  availabilityWindow: string | null;
+}
+
 interface Me {
   discordId: string;
   username: string;
@@ -22,6 +28,7 @@ interface Me {
   isMember: boolean;
   isModerator: boolean;
   characters: Character[];
+  signupPreferences: SignupPreferences;
 }
 
 const send = (path: string, init: RequestInit = {}) =>
@@ -38,6 +45,12 @@ function AccountPageContent() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [usedLinkCode, setUsedLinkCode] = useState<string | null>(null);
+  const [preferences, setPreferences] = useState<SignupPreferences>({
+    preferredRole: null,
+    notes: null,
+    availabilityWindow: null,
+  });
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [streamStatus, setStreamStatus] = useState<{
     active: boolean;
     sessionId?: string;
@@ -56,6 +69,8 @@ function AccountPageContent() {
     setLoading(false);
 
     if (body.user !== null) {
+      setPreferences(body.user.signupPreferences ?? { preferredRole: null, notes: null, availabilityWindow: null });
+
       const characters = await send("/api/me/characters/available");
       if (characters.ok) setAvailable((await characters.json()) as Character[]);
 
@@ -154,8 +169,8 @@ function AccountPageContent() {
         </div>
         <button
           onClick={async () => {
-            await send("/auth/logout", { method: "POST" });
-            await refresh();
+            await send("/auth/logout", { method: "GET" });
+            window.location.assign("/me");
           }}
           className="rounded border border-[var(--color-line)] px-4 py-2 text-xs uppercase tracking-[0.12em] text-[var(--color-muted)] hover:text-[var(--color-ink)]"
         >
@@ -180,6 +195,63 @@ function AccountPageContent() {
           </p>
         </section>
       ) : null}
+
+      <section className="panel rounded-md p-5">
+        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Member profile</h2>
+        <p className="mt-2 text-sm text-[var(--color-muted)]">
+          Only characters you personally appeared with in your own uploads or live sessions can be linked here. This keeps the roster tied to your account rather than every character seen in guild logs.
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <label className="rounded border border-[var(--color-line)] p-3 text-sm">
+            <span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">Preferred role</span>
+            <select
+              value={preferences.preferredRole ?? ""}
+              onChange={(event) => setPreferences((current) => ({ ...current, preferredRole: event.target.value as SignupPreferences["preferredRole"] }))}
+              className="mt-2 w-full rounded border border-[var(--color-line)] bg-black/25 px-3 py-2 text-sm"
+            >
+              <option value="">No preference</option>
+              <option value="tank">Tank</option>
+              <option value="healer">Healer</option>
+              <option value="dps">DPS</option>
+              <option value="bench">Bench</option>
+              <option value="declined">Declined</option>
+            </select>
+          </label>
+          <label className="rounded border border-[var(--color-line)] p-3 text-sm">
+            <span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">Availability window</span>
+            <input
+              value={preferences.availabilityWindow ?? ""}
+              onChange={(event) => setPreferences((current) => ({ ...current, availabilityWindow: event.target.value }))}
+              placeholder="e.g. Sunday 8pm-11pm"
+              className="mt-2 w-full rounded border border-[var(--color-line)] bg-black/25 px-3 py-2 text-sm"
+            />
+          </label>
+        </div>
+        <label className="mt-3 block rounded border border-[var(--color-line)] p-3 text-sm">
+          <span className="block text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">Roster notes</span>
+          <textarea
+            value={preferences.notes ?? ""}
+            onChange={(event) => setPreferences((current) => ({ ...current, notes: event.target.value }))}
+            placeholder="Share your notes for raid leads, such as late-night availability or backup roles."
+            className="mt-2 min-h-24 w-full rounded border border-[var(--color-line)] bg-black/25 px-3 py-2 text-sm"
+          />
+        </label>
+        <button
+          onClick={async () => {
+            setSavingPreferences(true);
+            const response = await send("/api/me/preferences", {
+              method: "PATCH",
+              body: JSON.stringify(preferences),
+            });
+            const body = (await response.json().catch(() => null)) as { error?: string } | null;
+            setSavingPreferences(false);
+            setMessage(response.ok ? "Your signup details were saved." : body?.error ?? "Could not save your profile details.");
+          }}
+          className="mt-4 rounded border border-[var(--color-republic)] px-3 py-2 text-xs uppercase tracking-[0.1em] text-[var(--color-republic)]"
+        >
+          {savingPreferences ? "Saving…" : "Save signup details"}
+        </button>
+      </section>
 
       <section className="panel rounded-md p-5">
         <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Characters</h2>

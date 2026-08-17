@@ -45,7 +45,8 @@ const schema = z.object({
   DISCORD_CLIENT_ID: z.string().optional(),
   DISCORD_CLIENT_SECRET: z.string().optional(),
   DISCORD_GUILD_ID: z.string().optional(),
-  /** Comma-separated role ids; moderator never defaults on. */
+  /** Comma-separated role ids for officer access; moderator never defaults on. */
+  DISCORD_OFFICER_ROLE_IDS: z.string().default(""),
   DISCORD_MODERATOR_ROLE_IDS: z.string().default(""),
   DISCORD_MEMBER_ROLE_IDS: z.string().default(""),
   /** Public origin of this API, used to build the OAuth redirect. */
@@ -84,6 +85,7 @@ export interface ApiConfig {
     clientSecret: string;
     guildId: string;
     redirectUri: string;
+    officerRoleIds: string[];
     moderatorRoleIds: string[];
     memberRoleIds: string[];
   } | null;
@@ -131,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
             clientSecret: parsed.DISCORD_CLIENT_SECRET,
             guildId: parsed.DISCORD_GUILD_ID,
             redirectUri: new URL("/auth/discord/callback", parsed.PUBLIC_API_URL).toString(),
+            officerRoleIds: ids(parsed.DISCORD_OFFICER_ROLE_IDS || parsed.DISCORD_MODERATOR_ROLE_IDS),
             moderatorRoleIds: ids(parsed.DISCORD_MODERATOR_ROLE_IDS),
             memberRoleIds: ids(parsed.DISCORD_MEMBER_ROLE_IDS),
           },
