@@ -1,11 +1,13 @@
 import { CombatSession, type LivePullState, type PullSummary } from "@swtor/analytics";
 import type { ActorMetrics, CombatEvent, MeterSnapshot } from "@swtor/shared";
+import type { SeenCharacter } from "./accountStore.js";
 
 export interface IngestSessionInit {
   sessionId: string;
   guildId: string;
   reportCode: string;
   logFileName: string;
+  ownerUserId?: string | null;
   idleTimeoutMs?: number;
   exitGraceMs?: number;
   onPullEnd: (pull: PullSummary, events: CombatEvent[]) => void;
@@ -44,6 +46,7 @@ export class IngestSession {
   readonly guildId: string;
   readonly reportCode: string;
   readonly logFileName: string;
+  readonly ownerUserId: string | null;
 
   readonly #combat: CombatSession;
   #buffer: CombatEvent[] = [];
@@ -69,6 +72,7 @@ export class IngestSession {
     this.guildId = init.guildId;
     this.reportCode = init.reportCode;
     this.logFileName = init.logFileName;
+    this.ownerUserId = init.ownerUserId ?? null;
 
     this.#combat = new CombatSession({
       ...(init.idleTimeoutMs === undefined ? {} : { idleTimeoutMs: init.idleTimeoutMs }),
@@ -138,6 +142,29 @@ export class IngestSession {
       actors: pull.actors.map(toActorMetrics),
     };
   }
+
+  characters(wallNow: number): SeenCharacter[] {
+    const pull = this.#combat.current(this.#eventTime(wallNow));
+    const liveCharacters = (pull?.actors ?? []).map((actor) => ({
+      playerId: actor.actorId,
+      name: actor.name,
+      discipline: actor.discipline,
+      role: actor.role,
+    }));
+
+    const rosterCharacters = this.#combat.roster.map((member) => ({
+      playerId: member.playerId,
+      name: member.name,
+      discipline: member.discipline,
+      role: member.role,
+    }));
+
+    const seen = new Map<string, SeenCharacter>();
+    for (const character of [...liveCharacters, ...rosterCharacters]) {
+      seen.set(character.playerId, character);
+    }
+    return [...seen.values()];
+  }
 }
 
 export interface SessionManagerOptions {
@@ -165,8 +192,16 @@ export class SessionManager {
     this.#sessions.set(session.sessionId, session);
   }
 
+  list(): IngestSession[] {
+    return [...this.#sessions.values()];
+  }
+
   get(sessionId: string): IngestSession | undefined {
     return this.#sessions.get(sessionId);
+  }
+
+  findByOwnerUserId(ownerUserId: string): IngestSession[] {
+    return [...this.#sessions.values()].filter((session) => session.ownerUserId === ownerUserId);
   }
 
   remove(sessionId: string): void {

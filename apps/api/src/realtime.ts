@@ -144,6 +144,7 @@ export function registerRealtime(deps: RealtimeDeps): RealtimeHandle {
           guildId: config.defaultGuildId,
           reportCode: report.code,
           logFileName: parsed.data.logFileName,
+          ownerUserId: (socket.data.ownerUserId as string | null) ?? null,
           idleTimeoutMs: config.pullIdleTimeoutMs,
           exitGraceMs: config.pullExitGraceMs,
           onPullEnd: (pull, events) => {

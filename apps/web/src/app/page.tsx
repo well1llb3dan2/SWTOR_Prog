@@ -2,11 +2,39 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { API_BASE_URL } from "@/lib/apiBase";
+
+const API_URL = API_BASE_URL;
 
 export default function HomePage() {
   const router = useRouter();
   const [sessionId, setSessionId] = useState("");
+  const [streamStatus, setStreamStatus] = useState<{
+    active: boolean;
+    sessionId?: string;
+    reportCode?: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const refresh = async () => {
+      try {
+        const response = await fetch(`${API_URL}/api/me/stream/status`, { credentials: "include" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { active: boolean; sessionId?: string; reportCode?: string };
+        setStreamStatus(body);
+      } catch {
+        setStreamStatus(null);
+      }
+    };
+
+    void refresh();
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, 5_000);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   return (
     <main className="space-y-8">
@@ -17,6 +45,20 @@ export default function HomePage() {
           Start the desktop streamer, then paste its session id below to watch the raid live.
         </p>
       </header>
+
+      {streamStatus?.active ? (
+        <section className="panel rounded-md border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 p-6">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-republic)]">
+            Live stream connected
+          </h2>
+          <p className="mt-2 text-sm text-[var(--color-ink)]">
+            A desktop streamer is currently connected to the portal.
+          </p>
+          <p className="mt-2 text-xs text-[var(--color-muted)]">
+            Session {streamStatus.sessionId ?? "unknown"} · Report {streamStatus.reportCode ?? "unknown"}
+          </p>
+        </section>
+      ) : null}
 
       <section className="panel rounded-md p-6">
         <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">

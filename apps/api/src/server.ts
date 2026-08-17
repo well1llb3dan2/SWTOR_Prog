@@ -59,9 +59,11 @@ export async function buildServer(options: BuildServerOptions): Promise<BuiltSer
   await app.register(rateLimit, { max: 300, timeWindow: "1 minute" });
   // Falls back to the ingest token so cookies are still signed in development.
   await app.register(cookie, { secret: config.sessionSecret ?? config.ingestToken });
+  const sessions = new SessionManager({ maxSessions: config.maxSessions });
   await registerAuthRoutes(app, {
     config,
     accounts: options.accounts,
+    sessions,
     ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
   });
   registerOperationRoutes(app, {
@@ -69,8 +71,6 @@ export async function buildServer(options: BuildServerOptions): Promise<BuiltSer
     accounts: options.accounts,
     operations: options.operations,
   });
-
-  const sessions = new SessionManager({ maxSessions: config.maxSessions });
 
   app.get("/health", async () => ({
     status: "ok",

@@ -1,8 +1,9 @@
 import { toPublicUser, type LinkedCharacter } from "@swtor/db";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { AccountStore } from "../accountStore.js";
+import type { AccountStore, SeenCharacter } from "../accountStore.js";
 import type { ApiConfig } from "../config.js";
+import type { SessionManager } from "../session.js";
 import {
   buildAuthorizeUrl,
   createState,
@@ -17,11 +18,13 @@ import {
 const SESSION_COOKIE = "swtor_session";
 const STATE_COOKIE = "swtor_oauth_state";
 const LINK_CODE_COOKIE = "swtor_link_code";
+const DESKTOP_REDIRECT_COOKIE = "swtor_desktop_redirect";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 
 export interface AuthRouteDeps {
   config: ApiConfig;
   accounts: AccountStore;
+  sessions: SessionManager;
   /** Injected so the OAuth exchange can be tested without Discord. */
   fetchImpl?: Fetcher;
 }
@@ -41,8 +44,16 @@ export function currentDiscordId(request: FastifyRequest): string | null {
   return readSession(request);
 }
 
+function dedupeCharacters(characters: SeenCharacter[]): SeenCharacter[] {
+  const seen = new Map<string, SeenCharacter>();
+  for (const character of characters) {
+    seen.set(character.playerId, character);
+  }
+  return [...seen.values()];
+}
+
 export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDeps): Promise<void> {
-  const { config, accounts } = deps;
+  const { config, accounts, sessions } = deps;
   const fetchImpl = deps.fetchImpl ?? fetch;
 
   const cookieOptions = {
@@ -88,9 +99,15 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
 
   app.get("/auth/discord", async (request, reply) => {
     const query = z
-      .object({ linkCode: z.string().min(4).max(16).optional() })
+      .object({
+        linkCode: z.string().min(4).max(16).optional(),
+        desktop: z.enum(["0", "1", "true", "false"]).optional(),
+        redirectUri: z.string().url().optional(),
+      })
       .safeParse(request.query);
     const linkCode = query.success && query.data.linkCode !== undefined ? query.data.linkCode.trim().toUpperCase() : null;
+    const desktop = query.success && query.data.desktop !== undefined ? query.data.desktop === "1" || query.data.desktop === "true" : false;
+    const redirectUri = query.success && query.data.redirectUri !== undefined ? query.data.redirectUri : null;
     const state = createState(secret);
 
     return reply
@@ -99,6 +116,11 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
         LINK_CODE_COOKIE,
         linkCode ?? "",
         { ...cookieOptions, maxAge: 600, expires: linkCode === null ? new Date(0) : undefined },
+      )
+      .setCookie(
+        DESKTOP_REDIRECT_COOKIE,
+        redirectUri ?? "",
+        { ...cookieOptions, maxAge: 600, expires: desktop && redirectUri !== null ? undefined : new Date(0) },
       )
       .redirect(buildAuthorizeUrl(discord, state));
   });
@@ -113,6 +135,7 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const unsigned = cookie === undefined ? null : request.unsignCookie(cookie);
     const expected = unsigned?.valid === true ? unsigned.value : null;
     const linkCode = readSignedCookie(request, LINK_CODE_COOKIE);
+    const desktopRedirect = readSignedCookie(request, DESKTOP_REDIRECT_COOKIE);
 
     // Both checks matter: the signature proves we issued the state, and the
     // cookie comparison proves it came back through the same browser.
@@ -140,14 +163,29 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
         redirectTarget.searchParams.set("linkCode", linkCode);
       }
 
+      const issueToken = async () => {
+        const issued = await accounts.issueUserToken(identity.id, "Desktop OAuth");
+        return issued.token;
+      };
+
+      const finalRedirect = desktopRedirect !== null && desktopRedirect.length > 0
+        ? new URL(desktopRedirect)
+        : redirectTarget;
+
+      if (desktopRedirect !== null && desktopRedirect.length > 0) {
+        finalRedirect.searchParams.set("token", await issueToken());
+        finalRedirect.searchParams.set("discordId", identity.id);
+      }
+
       return reply
         .clearCookie(STATE_COOKIE, cookieOptions)
         .clearCookie(LINK_CODE_COOKIE, cookieOptions)
+        .clearCookie(DESKTOP_REDIRECT_COOKIE, cookieOptions)
         .setCookie(SESSION_COOKIE, identity.id, {
           ...cookieOptions,
           maxAge: SESSION_MAX_AGE_SECONDS,
         })
-        .redirect(redirectTarget.toString());
+        .redirect(finalRedirect.toString());
     } catch (error: unknown) {
       app.log.warn({ err: error }, "discord sign-in failed");
       return reply.code(502).send({ error: "Discord sign-in failed" });
@@ -184,9 +222,31 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const user = await requireUser(request, reply);
     if (user === null) return reply;
 
-    const seen = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
+    const uploaded = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
+    const live = sessions.list().flatMap((session) => session.characters(Date.now()));
+    const available = dedupeCharacters([...uploaded, ...live]);
     const linked = new Set(user.characters.map((c) => c.playerId));
-    return seen.filter((character) => !linked.has(character.playerId));
+    return available.filter((character) => !linked.has(character.playerId));
+  });
+
+  app.get("/api/me/stream/status", async (request, reply) => {
+    const user = await requireUser(request, reply);
+    if (user === null) return reply;
+
+    const active = sessions.findByOwnerUserId(user.discordId);
+    const current = active[0];
+    if (current === undefined) {
+      return { active: false };
+    }
+
+    return {
+      active: true,
+      sessionId: current.sessionId,
+      reportCode: current.reportCode,
+      logFileName: current.logFileName,
+      eventsReceived: current.eventsReceived,
+      lastSeenAt: current.lastSeenAt,
+    };
   });
 
   app.post("/api/me/characters", async (request, reply) => {
@@ -196,11 +256,14 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const body = z.object({ playerId: z.string().min(1).max(32) }).parse(request.body);
 
     // Ownership proof: the character must have appeared in a log this user
-    // uploaded. Without that anyone could claim the guild's best parser.
-    const seen = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
+    // uploaded, or in one of their active live sessions. Without that anyone
+    // could claim the guild's best parser.
+    const uploaded = await accounts.charactersSeenBy(config.defaultGuildId, user.discordId);
+    const live = sessions.list().flatMap((session) => session.characters(Date.now()));
+    const seen = dedupeCharacters([...uploaded, ...live]);
     const character = seen.find((c) => c.playerId === body.playerId);
     if (character === undefined) {
-      return reply.code(403).send({ error: "that character has not appeared in your uploads" });
+      return reply.code(403).send({ error: "that character has not appeared in your uploads or live sessions" });
     }
 
     if (await accounts.isCharacterClaimed(config.defaultGuildId, body.playerId, user.discordId)) {

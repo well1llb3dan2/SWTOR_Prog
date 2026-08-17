@@ -5,6 +5,7 @@ import { resolveMembership, createState, verifyState } from "../src/auth/discord
 import { loadConfig } from "../src/config.js";
 import { buildServer, type BuiltServer } from "../src/server.js";
 import { MemoryReportStore } from "../src/store.js";
+import { IngestSession } from "../src/session.js";
 
 const SESSION_SECRET = "a-session-secret-that-is-definitely-long-enough";
 
@@ -214,6 +215,31 @@ describe("sign-in", () => {
     expect(body.user.isMember).toBe(true);
   });
 
+  it("redirects desktop OAuth to a local callback with a token", async () => {
+    const start = await server.app.inject({
+      method: "GET",
+      url: "/auth/discord?desktop=1&redirectUri=http%3A%2F%2F127.0.0.1%3A4321%2Fcallback",
+    });
+    const stateCookie = start.cookies.find((c) => c.name === "swtor_oauth_state")!;
+    const redirectCookie = start.cookies.find((c) => c.name === "swtor_desktop_redirect")!;
+    const state = new URL(start.headers.location as string).searchParams.get("state")!;
+
+    const callback = await server.app.inject({
+      method: "GET",
+      url: `/auth/discord/callback?code=abc&state=${encodeURIComponent(state)}`,
+      cookies: {
+        swtor_oauth_state: stateCookie.value,
+        swtor_desktop_redirect: redirectCookie.value,
+      },
+    });
+
+    expect(callback.statusCode).toBe(302);
+    const location = new URL(callback.headers.location as string);
+    expect(location.origin).toBe("http://127.0.0.1:4321");
+    expect(location.searchParams.get("token")).toBeTruthy();
+    expect(location.searchParams.get("discordId")).toBe("424242");
+  });
+
   it("reports nobody when there is no session", async () => {
     const me = await server.app.inject({ method: "GET", url: "/api/me" });
     expect(me.json()).toEqual({ user: null });
@@ -296,6 +322,67 @@ describe("character linking", () => {
       headers: { cookie },
     });
     expect(available.json()).toHaveLength(1);
+  });
+
+  it("lists characters seen in active live sessions", async () => {
+    const cookie = await signIn();
+    accounts.setSeenCharacters("424242", []);
+
+    const session = new IngestSession({
+      sessionId: "session-live",
+      guildId: config.defaultGuildId,
+      reportCode: "live-report",
+      logFileName: "live.log",
+      ownerUserId: "424242",
+      onPullEnd: () => undefined,
+    });
+    session.push([
+      {
+        type: "areaEntered",
+        timestamp: 0,
+        lineNumber: 1,
+        source: null,
+        target: null,
+        ability: null,
+        threat: null,
+        zone: { name: "Darvannis", id: "137438993037" },
+        groupSize: 8,
+        difficulty: "Veteran",
+        logVersion: "v7.0.0b",
+      },
+      {
+        type: "disciplineChanged",
+        timestamp: 1,
+        lineNumber: 2,
+        source: {
+          kind: "player",
+          name: "Twistle",
+          playerId: "player-1",
+          position: null,
+          hp: null,
+          maxHp: null,
+        },
+        target: null,
+        ability: null,
+        threat: null,
+        advancedClass: { name: "Guardian", id: "1" },
+        discipline: { name: "Watchman", id: "2" },
+        role: "dps",
+      },
+    ] as never);
+    server.sessions.add(session);
+
+    const available = await server.app.inject({
+      method: "GET",
+      url: "/api/me/characters/available",
+      headers: { cookie },
+    });
+
+    expect(available.json()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ playerId: "player-1", name: "Twistle" })]),
+    );
+
+    server.sessions.remove("session-live");
   });
 
   // Otherwise anyone could claim the guild's best parser as their own.

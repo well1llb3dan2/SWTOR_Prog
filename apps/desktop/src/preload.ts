@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld("desktop", {
   saveSettings: (settings: unknown) => ipcRenderer.invoke("settings:save", settings),
   pickLogDirectory: () => ipcRenderer.invoke("dialog:log-directory"),
   pickReplayFile: () => ipcRenderer.invoke("dialog:replay-file"),
-  redeemLinkCode: (code: string) => ipcRenderer.invoke("link:redeem", code),
+  loginWithDiscord: () => ipcRenderer.invoke("auth:discord"),
   checkApiHealth: () => ipcRenderer.invoke("api:health"),
   listReports: (limit: number) => ipcRenderer.invoke("api:reports", limit),
   startLive: () => ipcRenderer.invoke("stream:start-live"),

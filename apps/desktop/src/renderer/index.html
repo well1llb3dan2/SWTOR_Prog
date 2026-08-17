@@ -169,20 +169,10 @@
       </div>
       <div class="row">
         <div>
-          <label for="token">Ingest token</label>
-          <input id="token" type="password" placeholder="leave blank to keep current" />
+          <label for="discordLogin">Discord account</label>
+          <div id="authState" class="detail">Sign in with Discord to link your account and start streaming.</div>
         </div>
-        <div style="align-self: end"><span id="tokenState" class="detail"></span></div>
-      </div>
-      <div class="row">
-        <div>
-          <label for="linkCode">Or link with a code from Discord (/link)</label>
-          <input id="linkCode" type="text" placeholder="6-character code" maxlength="8" />
-        </div>
-        <div style="align-self: end" class="actions">
-          <button id="redeem">Link</button>
-          <button id="openPortal">Open portal</button>
-        </div>
+        <div style="align-self: end"><button id="discordLogin">Sign in with Discord</button></div>
       </div>
       <div class="row">
         <div>

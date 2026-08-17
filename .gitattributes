@@ -1,0 +1,4 @@
+apps/desktop/release/**/*.yml filter=lfs diff=lfs merge=lfs -text
+apps/desktop/release/**/*.yaml filter=lfs diff=lfs merge=lfs -text
+apps/desktop/release/*.exe filter=lfs diff=lfs merge=lfs -text
+apps/desktop/release/**/*.exe filter=lfs diff=lfs merge=lfs -text

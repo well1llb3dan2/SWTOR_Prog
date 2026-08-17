@@ -7,7 +7,9 @@ async function refreshSettings() {
   const settings = await window.desktop.getSettings();
   $("serverUrl").value = settings.serverUrl;
   $("logDirectory").value = settings.logDirectory;
-  $("tokenState").textContent = settings.hasToken ? "token saved" : "no token set";
+  $("authState").textContent = settings.hasToken
+    ? "Discord linked. You can start streaming now."
+    : "Sign in with Discord to link your account and start streaming.";
 }
 
 async function refreshApiStatus() {
@@ -81,22 +83,14 @@ $("pickDir").addEventListener("click", async () => {
   await refreshApiStatus();
 });
 
-$("redeem").addEventListener("click", async () => {
-  const code = $("linkCode").value.trim();
-  if (code.length === 0) return;
-
-  const result = await window.desktop.redeemLinkCode(code);
-  $("linkCode").value = "";
-  $("detail").textContent = result.ok ? `Linked as ${result.username}` : result.error;
-  await refreshSettings();
-  await refreshApiStatus();
-});
-
-$("openPortal").addEventListener("click", async () => {
-  const code = $("linkCode").value.trim();
-  const result = await window.desktop.openLinkPortal(code.length > 0 ? code : undefined);
-  if (!result.ok) {
-    $("detail").textContent = result.error ?? "Could not open the account portal";
+$("discordLogin").addEventListener("click", async () => {
+  const result = await window.desktop.loginWithDiscord();
+  if (result.ok) {
+    $("detail").textContent = `Signed in as ${result.discordId}`;
+    await refreshSettings();
+    await refreshApiStatus();
+  } else {
+    $("detail").textContent = result.error ?? "Discord sign-in failed";
   }
 });
 

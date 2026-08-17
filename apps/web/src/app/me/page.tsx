@@ -48,6 +48,14 @@ function AccountPageContent() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [usedLinkCode, setUsedLinkCode] = useState<string | null>(null);
+  const [streamStatus, setStreamStatus] = useState<{
+    active: boolean;
+    sessionId?: string;
+    reportCode?: string;
+    logFileName?: string;
+    eventsReceived?: number;
+    lastSeenAt?: number;
+  } | null>(null);
 
   const linkCode = searchParams.get("linkCode")?.trim().toUpperCase() ?? null;
 
@@ -60,12 +68,29 @@ function AccountPageContent() {
     if (body.user !== null) {
       const characters = await send("/api/me/characters/available");
       if (characters.ok) setAvailable((await characters.json()) as Character[]);
+
+      const streamResponse = await send("/api/me/stream/status");
+      if (streamResponse.ok) {
+        setStreamStatus((await streamResponse.json()) as { active: boolean; sessionId?: string; reportCode?: string; logFileName?: string; eventsReceived?: number; lastSeenAt?: number });
+      }
+    } else {
+      setStreamStatus(null);
     }
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (me === null) return;
+
+    const interval = window.setInterval(() => {
+      void refresh();
+    }, 5_000);
+
+    return () => window.clearInterval(interval);
+  }, [me, refresh]);
 
   useEffect(() => {
     if (me === null || linkCode === null || usedLinkCode === linkCode) return;
@@ -150,6 +175,20 @@ function AccountPageContent() {
 
       {message !== null ? (
         <p className="panel rounded-md px-4 py-3 text-sm text-[var(--color-muted)]">{message}</p>
+      ) : null}
+
+      {streamStatus?.active ? (
+        <section className="panel rounded-md border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 p-5">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-republic)]">
+            Live stream connected
+          </h2>
+          <p className="mt-2 text-sm text-[var(--color-ink)]">
+            Your desktop streamer is currently active and sending live combat data.
+          </p>
+          <p className="mt-2 text-xs text-[var(--color-muted)]">
+            Session {streamStatus.sessionId ?? "unknown"} · Report {streamStatus.reportCode ?? "unknown"}
+          </p>
+        </section>
       ) : null}
 
       <section className="panel rounded-md p-5">

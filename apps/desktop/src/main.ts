@@ -3,7 +3,6 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { fetchApiHealth, fetchApiReports } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
-import { redeemLinkCode } from "./core/link.js";
 import { newestLogFile } from "./core/logDirectory.js";
 import { ReplaySource } from "./core/replay.js";
 import {
@@ -221,16 +220,60 @@ app.whenReady().then(async () => {
   ipcMain.handle("stream:start-replay", (_event, filePath: string, speed: number) =>
     startReplay(filePath, speed),
   );
-  ipcMain.handle("link:redeem", async (_event, code: string) => {
-    try {
-      const linked = await redeemLinkCode(settings.serverUrl, code);
-      settings = { ...settings, token: linked.token };
+  ipcMain.handle("auth:discord", async () => {
+    const authUrl = new URL(`${settings.serverUrl}/auth/discord`);
+    authUrl.searchParams.set("desktop", "1");
+    authUrl.searchParams.set("redirectUri", "app://desktop/auth/callback");
+
+    const authWindow = new BrowserWindow({
+      width: 900,
+      height: 700,
+      show: false,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+      },
+    });
+
+    authWindow.once("ready-to-show", () => authWindow.show());
+    authWindow.webContents.setWindowOpenHandler(({ url }) => {
+      void shell.openExternal(url);
+      return { action: "deny" };
+    });
+
+    const result = await new Promise<{ ok: boolean; error?: string; token?: string; discordId?: string }>(
+      (resolve) => {
+        authWindow.webContents.on("will-navigate", (_event, url) => {
+          const parsed = new URL(url);
+          if (parsed.protocol === "app:") {
+            _event.preventDefault();
+            const token = parsed.searchParams.get("token");
+            const discordId = parsed.searchParams.get("discordId");
+            if (token !== null && discordId !== null) {
+              resolve({ ok: true, token: token, discordId });
+            } else {
+              resolve({ ok: false, error: "Discord sign-in did not include a token" });
+            }
+            authWindow.close();
+          }
+        });
+        authWindow.webContents.on("did-fail-load", () => {
+          authWindow.close();
+          resolve({ ok: false, error: "Failed to open the sign-in window" });
+        });
+        void authWindow.loadURL(authUrl.toString());
+      },
+    );
+
+    if (result.ok && result.token !== undefined) {
+      settings = { ...settings, token: result.token };
       await saveSettings(settingsPath(app.getPath("userData")), settings);
       teardown();
-      return { ok: true, username: linked.username };
-    } catch (error: unknown) {
-      return { ok: false, error: error instanceof Error ? error.message : "Link failed" };
+      return { ok: true, discordId: result.discordId };
     }
+
+    return result;
   });
 
   ipcMain.handle("stream:stop", () => {
