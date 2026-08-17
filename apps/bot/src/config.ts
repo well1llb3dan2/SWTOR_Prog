@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const schema = z.object({
   DISCORD_TOKEN: z.string().min(20),
+  GUILD_ID: z.string().min(5).optional(),
   PROGRESSION_CHANNEL_ID: z.string().min(5),
   /** Channel signup posts go to; defaults to the progression channel. */
   SIGNUP_CHANNEL_ID: z.string().min(5).optional(),
@@ -30,6 +31,7 @@ export interface BotConfig {
   apiUrl: string;
   feedToken: string;
   webUrl: string;
+  guildId?: string;
   closeWipePercent: number;
   bossesOnly: boolean;
 }
@@ -44,6 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BotConfig {
     apiUrl: parsed.API_URL,
     feedToken: parsed.FEED_TOKEN,
     webUrl: parsed.WEB_URL,
+    guildId: parsed.GUILD_ID,
     closeWipePercent: parsed.CLOSE_WIPE_PERCENT,
     bossesOnly: parsed.BOSSES_ONLY,
   };

@@ -40,6 +40,20 @@ export function waitForClientReady(client: { once: (event: string, handler: () =
   });
 }
 
+export async function registerSlashCommands(
+  client: { application: { commands: { set: (commands: unknown[], guildId?: string) => Promise<unknown> } } | null },
+  guildId?: string,
+): Promise<void> {
+  const commands = [
+    new SlashCommandBuilder()
+      .setName("link")
+      .setDescription("Get a one-time code to connect the desktop combat streamer")
+      .toJSON(),
+  ];
+
+  await client.application?.commands.set(commands, guildId);
+}
+
 /**
  * Loads existing progression so a restart does not re-announce a first kill
  * the guild already celebrated.
@@ -85,12 +99,7 @@ export async function startBot(config: BotConfig): Promise<() => Promise<void>> 
     console.warn("Could not load progression history; first kills may be re-announced");
   }
 
-  await client.application?.commands.set([
-    new SlashCommandBuilder()
-      .setName("link")
-      .setDescription("Get a one-time code to connect the desktop combat streamer")
-      .toJSON(),
-  ]);
+  await registerSlashCommands(client, config.guildId);
 
   client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand() || interaction.commandName !== "link") return;
