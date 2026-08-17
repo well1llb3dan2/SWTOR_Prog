@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PwaRegister } from "@/components/pwaRegister";
+import { SiteHeader } from "@/components/siteHeader";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -21,20 +23,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="blueprint">
         <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 py-8">
-          <header className="mb-6 rounded-md border border-[var(--color-line)] bg-black/25 px-5 py-4 backdrop-blur">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-gold)]">Republic command</p>
-                <h1 className="mt-1 text-xl uppercase">Infamous operations network</h1>
-              </div>
-              <div className="flex items-center gap-2 rounded border border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 px-3 py-2 text-xs uppercase tracking-[0.14em] text-[var(--color-republic)]">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--color-republic)]" />
-                Live telemetry online
-              </div>
-            </div>
-          </header>
+          <SiteHeader />
           <div className="flex-1">{children}</div>
         </div>
+        <PwaRegister />
       </body>
     </html>
   );

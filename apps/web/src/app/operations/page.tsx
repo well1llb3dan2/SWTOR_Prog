@@ -2,27 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchReports } from "@/lib/api";
 
-const DEFAULT_ROSTER = [
-  { role: "tank", name: "Vanguard", discipline: "Plasmatech" },
-  { role: "tank", name: "Assassin", discipline: "Darkness" },
-  { role: "healer", name: "Doc", discipline: "Medicine" },
-  { role: "healer", name: "Mako", discipline: "Bodyguard" },
-  { role: "dps", name: "Gault", discipline: "Virulence" },
-  { role: "dps", name: "Torian", discipline: "Annihilation" },
-  { role: "dps", name: "Blizz", discipline: "Pyrotech" },
-  { role: "dps", name: "Nox", discipline: "Hatred" },
-];
-
 const MISSION_PRIORITIES = [
-  { title: "Primary objective", detail: "Protect the late-phase burst window with disciplined tank swaps and cleanse timing." },
-  { title: "Risk", detail: "The progression spike is likely to create a scrubline around the final add wave." },
-  { title: "Support plan", detail: "Anchor the roster around a stable 2/2/4 core and preserve one bench slot for utility." },
+  { title: "Primary focus", detail: "Maintaining readiness for the next operation window." },
+  { title: "Current note", detail: "Support and timing are being coordinated around available attendance." },
+  { title: "Status", detail: "Roster adjustments remain flexible as confirmations come in." },
 ];
 
 const READINESS_CHECKLIST = [
-  { label: "Force vulnerability coverage", value: "Locked" },
-  { label: "Stealth rez availability", value: "Ready" },
-  { label: "Burst healing window", value: "Prepared" },
+  { label: "Support coverage", value: "Tracked" },
+  { label: "Roster balance", value: "Reviewing" },
+  { label: "Timing window", value: "Pending" },
 ];
 
 export default async function OperationsPage() {
@@ -41,7 +30,7 @@ export default async function OperationsPage() {
         </Link>
         <h1 className="mt-1 text-2xl uppercase">Raid Builder</h1>
         <p className="mt-1 text-sm text-[var(--color-muted)]">
-          A mechanics-first roster composer for the next phase of the Infamous ops workflow.
+          Planning space for the next operation window.
         </p>
       </header>
 
@@ -49,10 +38,10 @@ export default async function OperationsPage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Mission brief</h2>
-            <p className="mt-1 text-sm">The next operation is being treated as a progression test with a stable core and a flexible utility bench.</p>
+            <p className="mt-1 text-sm">The next operation window is being coordinated around current availability and priorities.</p>
           </div>
           <span className="rounded border border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 px-3 py-1 text-xs uppercase tracking-[0.12em] text-[var(--color-republic)]">
-            Priority: NiM prep
+            Priority update
           </span>
         </div>
 
@@ -84,35 +73,21 @@ export default async function OperationsPage() {
       <section className="panel rounded-md p-5">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Suggested roster</h2>
-            <p className="mt-1 text-sm">Prepared for a 2-tank / 2-healer / 4-dps composition.</p>
+            <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Roster status</h2>
+            <p className="mt-1 text-sm">Roster details will be updated here as the next assignment is finalized.</p>
           </div>
           <span className="rounded border border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 px-3 py-1 text-xs uppercase tracking-[0.12em] text-[var(--color-republic)]">
-            Synergy score 94/100
+            Pending update
           </span>
         </div>
-
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-          {DEFAULT_ROSTER.map((member, index) => (
-            <li key={`${member.name}-${index}`} className="rounded border border-[var(--color-line)] px-3 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-sm uppercase">{member.name}</span>
-                <span className="text-[10px] uppercase tracking-[0.14em] text-[var(--color-muted)]">
-                  {member.role}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-[var(--color-muted)]">{member.discipline}</p>
-            </li>
-          ))}
-        </ul>
       </section>
 
       <section className="panel rounded-md p-5">
-        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Mechanics notes</h2>
+        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Notes</h2>
         <ul className="mt-3 space-y-2 text-sm text-[var(--color-muted)]">
-          <li>• Force vulnerability coverage is present for the primary boss phase.</li>
-          <li>• Stealth rez and push utility are assigned to the core comp.</li>
-          <li>• Healing coverage prioritises the late-phase burst window.</li>
+          <li>• Coordination remains the focus for the next operation period.</li>
+          <li>• Support coverage and timing stay under review.</li>
+          <li>• Updates will be reflected here as planning progresses.</li>
         </ul>
       </section>
 

@@ -1,7 +1,7 @@
 const MISSION_STEPS = [
-  { title: "Recon", detail: "Review the latest encounter outcomes and identify the next bottleneck." },
-  { title: "Prepare", detail: "Align roster composition, utility coverage, and cooldown timing around the intended route." },
-  { title: "Execute", detail: "Push the encounter with clean burst-window discipline and tight communication." },
+  { title: "Current focus", detail: "Staying aligned with the current operation window." },
+  { title: "Support status", detail: "Availability and timing remain under review." },
+  { title: "Latest update", detail: "New information will appear here as it is confirmed." },
 ];
 
 export function MissionTimeline() {
@@ -10,10 +10,10 @@ export function MissionTimeline() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Mission flow</p>
-          <h2 className="mt-1 text-lg uppercase">The next push</h2>
+          <h2 className="mt-1 text-lg uppercase">Current status</h2>
         </div>
         <span className="rounded border border-[var(--color-gold)]/40 bg-[var(--color-gold)]/10 px-3 py-1 text-xs uppercase tracking-[0.12em] text-[var(--color-gold)]">
-          Command cadence
+          Command update
         </span>
       </div>
 
