@@ -12,9 +12,10 @@ export default async function ProgressionPage() {
   if (reports === null) notFound();
 
   const safeReports = Array.isArray(reports) ? reports : [];
-  const bossFights = safeReports.flatMap((report) =>
-    report.fights.filter((fight) => fight.boss?.isLikelyBoss === true),
-  );
+  const bossFights = safeReports.flatMap((report) => {
+    const fights = Array.isArray(report.fights) ? report.fights : [];
+    return fights.filter((fight) => fight.boss?.isLikelyBoss === true);
+  });
 
   const encounterSummary = new Map<string, { name: string; kills: number; wipes: number }>();
   for (const fight of bossFights) {
