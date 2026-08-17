@@ -330,13 +330,23 @@ export class PullAccumulator {
     const died = new Set(this.#deaths.map((d) => d.playerId));
     const everyoneDied =
       this.#participants.size > 0 && [...this.#participants].every((id) => died.has(id));
-    return everyoneDied ? "wipe" : "incomplete";
+    if (everyoneDied) return "wipe";
+
+    // A trash pull still counts as a kill when the enemies were cleared and the
+    // raid did not fully wipe, even if no boss was identified for the pull.
+    if (this.#deadNpcIds.size > 0) return "kill";
+
+    return "incomplete";
   }
 
   #roster(): RosterEntry[] {
     return [...this.#context.roster.values()].filter(
       (entry) => this.#participants.has(entry.playerId) || this.#totals.has(entry.playerId),
     );
+  }
+
+  hasClearedAllEngagedNpcs(): boolean {
+    return this.#engagedNpcIds.size > 0 && [...this.#engagedNpcIds].every((id) => this.#deadNpcIds.has(id));
   }
 
   finish(endedAt: number): PullSummary {

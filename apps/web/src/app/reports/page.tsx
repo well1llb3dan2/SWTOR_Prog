@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { API_BASE_URL } from "@/lib/apiBase";
 import { formatDuration } from "@/lib/format";
 
 interface ReportSummary {
@@ -13,7 +14,7 @@ interface ReportSummary {
   killCount: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = API_BASE_URL;
 
 async function loadReports(): Promise<{ reports: ReportSummary[]; error: string | null }> {
   try {

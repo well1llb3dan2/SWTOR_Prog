@@ -121,6 +121,10 @@ export class CombatSession {
     this.#open(event.timestamp);
     this.#exitPendingSince = null;
     this.#current?.add(event);
+
+    if (event.type === "death" && this.#current?.hasClearedAllEngagedNpcs()) {
+      this.#close(event.timestamp);
+    }
   }
 
   /** Lets an idle pull close when the stream has gone quiet. */

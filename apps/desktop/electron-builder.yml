@@ -16,9 +16,17 @@ win:
   target:
     - target: nsis
       arch: [x64]
-  # Signing needs a certificate in CSC_LINK / CSC_KEY_PASSWORD. Without them
-  # the build still succeeds, it is simply unsigned.
   signingHashAlgorithms: [sha256]
+  sign: false
+  signAndEditExecutable: false
+  icon: build/icon.ico
+
+# Avoid code-signing infrastructure issues on local builds.
+# Set CSC_LINK / CSC_KEY_PASSWORD later if you want a signed installer.
+artifactName: SWTOR-Combat-Streamer-${version}-setup.${ext}
+
+electronDownload:
+  mirror: https://npmmirror.com/mirrors/electron/
 
 nsis:
   oneClick: false

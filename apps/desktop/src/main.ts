@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { fetchApiHealth, fetchApiReports } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { redeemLinkCode } from "./core/link.js";
 import { newestLogFile } from "./core/logDirectory.js";
@@ -15,12 +15,13 @@ import {
 import { LogStreamer } from "./core/streamer.js";
 
 const CLIENT_VERSION = "0.1.0";
-const here = fileURLToPath(new URL(".", import.meta.url));
+const distDir = __dirname;
 
 interface AppStatus {
   mode: "idle" | "live" | "replay";
   connection: ConnectionState;
   detail: string | null;
+  sessionId: string | null;
   reportCode: string | null;
   fileName: string | null;
   zone: string | null;
@@ -42,6 +43,7 @@ const status: AppStatus = {
   mode: "idle",
   connection: "idle",
   detail: null,
+  sessionId: null,
   reportCode: null,
   fileName: null,
   zone: null,
@@ -58,6 +60,7 @@ function publish(patch: Partial<AppStatus> = {}): void {
   if (client !== null) {
     status.queuedEvents = client.queuedEvents;
     status.droppedEvents = client.droppedEvents;
+    status.sessionId = client.sessionId;
   }
   window?.webContents.send("status", status);
 }
@@ -146,7 +149,7 @@ function createWindow(): void {
     title: "SWTOR Combat Streamer",
     backgroundColor: "#0b1410",
     webPreferences: {
-      preload: join(here, "preload.cjs"),
+      preload: join(distDir, "preload.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -159,7 +162,7 @@ function createWindow(): void {
     return { action: "deny" };
   });
 
-  void window.loadFile(join(here, "renderer", "index.html"));
+  void window.loadFile(join(distDir, "renderer", "index.html"));
   window.on("closed", () => (window = null));
 }
 
@@ -192,6 +195,22 @@ app.whenReady().then(async () => {
       filters: [{ name: "Combat logs", extensions: ["txt"] }],
     });
     return result.canceled ? null : result.filePaths[0];
+  });
+
+  ipcMain.handle("api:health", async () => {
+    try {
+      return { ok: true, data: await fetchApiHealth(settings.serverUrl) };
+    } catch (error: unknown) {
+      return { ok: false, error: error instanceof Error ? error.message : "Health check failed" };
+    }
+  });
+
+  ipcMain.handle("api:reports", async (_event, limit: number) => {
+    try {
+      return { ok: true, data: await fetchApiReports(settings.serverUrl, limit) };
+    } catch (error: unknown) {
+      return { ok: false, error: error instanceof Error ? error.message : "Reports lookup failed" };
+    }
   });
 
   ipcMain.handle("stream:start-live", () => startLive());

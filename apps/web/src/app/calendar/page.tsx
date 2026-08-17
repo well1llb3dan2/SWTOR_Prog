@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { API_BASE_URL } from "@/lib/apiBase";
 import { roleAccent } from "@/lib/meters";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = API_BASE_URL;
 const TIME_ZONE = "America/New_York";
 
 type SignupStatus = "tank" | "healer" | "dps" | "bench" | "declined";

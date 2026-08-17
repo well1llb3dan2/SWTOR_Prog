@@ -10,10 +10,34 @@ async function refreshSettings() {
   $("tokenState").textContent = settings.hasToken ? "token saved" : "no token set";
 }
 
+async function refreshApiStatus() {
+  const healthResult = await window.desktop.checkApiHealth();
+  if (healthResult.ok) {
+    const health = healthResult.data;
+    $("apiStatus").textContent = `API ${health.status} • ${health.sessions} sessions • ${health.uptimeSeconds}s uptime`;
+  } else {
+    $("apiStatus").textContent = healthResult.error ?? "API unavailable";
+  }
+
+  const reportsResult = await window.desktop.listReports(5);
+  if (reportsResult.ok) {
+    const reports = reportsResult.data ?? [];
+    $("apiReports").textContent =
+      reports.length === 0
+        ? "No reports yet."
+        : reports
+            .map((report) => `${report.code} · ${report.zone} · ${report.killCount}/${report.fightCount}`)
+            .join(" | ");
+  } else {
+    $("apiReports").textContent = reportsResult.error ?? "Reports unavailable";
+  }
+}
+
 function render(status) {
   $("dot").className = `dot ${status.connection}`;
   $("connection").textContent = status.connection;
   $("detail").textContent = status.detail ?? "";
+  $("sessionId").textContent = status.sessionId ? `Session ID: ${status.sessionId}` : "Session ID: not connected";
   $("fileName").textContent = status.fileName ?? "—";
   $("zone").textContent = status.zone ?? "—";
   $("rate").textContent = number.format(status.eventsPerSecond);
@@ -45,6 +69,7 @@ $("save").addEventListener("click", async () => {
   });
   $("token").value = "";
   await refreshSettings();
+  await refreshApiStatus();
   $("detail").textContent = "Settings saved";
 });
 
@@ -53,6 +78,7 @@ $("pickDir").addEventListener("click", async () => {
   if (directory === null) return;
   $("logDirectory").value = directory;
   await window.desktop.saveSettings({ logDirectory: directory });
+  await refreshApiStatus();
 });
 
 $("redeem").addEventListener("click", async () => {
@@ -63,6 +89,7 @@ $("redeem").addEventListener("click", async () => {
   $("linkCode").value = "";
   $("detail").textContent = result.ok ? `Linked as ${result.username}` : result.error;
   await refreshSettings();
+  await refreshApiStatus();
 });
 
 $("startLive").addEventListener("click", async () => {
@@ -79,3 +106,4 @@ $("stop").addEventListener("click", () => window.desktop.stop());
 
 window.desktop.onStatus(render);
 void refreshSettings();
+void refreshApiStatus();

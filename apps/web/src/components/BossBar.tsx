@@ -7,26 +7,35 @@ interface Props {
   maxHp: number;
   encounterName: string | null;
   isLikelyBoss: boolean;
+  className?: string;
 }
 
-export function BossBar({ name, hpPercent, hp, maxHp, encounterName, isLikelyBoss }: Props) {
+export function BossBar({
+  name,
+  hpPercent,
+  hp,
+  maxHp,
+  encounterName,
+  isLikelyBoss,
+  className,
+}: Props) {
   const percent = hpPercent ?? 100;
 
   return (
-    <div className="panel rounded-md px-5 py-4">
-      <div className="flex items-baseline justify-between gap-4">
+    <div className={`panel rounded-md px-3 py-3 sm:px-4 sm:py-4 ${className ?? ""}`}>
+      <div className="flex items-baseline justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="truncate text-lg uppercase">{encounterName ?? name}</h2>
+          <h2 className="truncate text-sm uppercase sm:text-base">{encounterName ?? name}</h2>
           {encounterName !== null && encounterName !== name ? (
-            <p className="truncate text-xs text-[var(--color-muted)]">{name}</p>
+            <p className="truncate text-[10px] text-[var(--color-muted)] sm:text-xs">{name}</p>
           ) : null}
         </div>
-        <p className="tabular shrink-0 text-lg text-[var(--color-gold)]">
+        <p className="tabular shrink-0 text-sm text-[var(--color-gold)] sm:text-lg">
           {formatPercent(hpPercent, 1)}
         </p>
       </div>
 
-      <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/50">
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/50 sm:mt-3">
         <div
           className="h-full rounded-full transition-[width] duration-700"
           style={{
@@ -38,7 +47,7 @@ export function BossBar({ name, hpPercent, hp, maxHp, encounterName, isLikelyBos
         />
       </div>
 
-      <p className="mt-2 tabular text-xs text-[var(--color-muted)]">
+      <p className="mt-2 tabular text-[10px] text-[var(--color-muted)] sm:text-xs">
         {hp === null ? "—" : formatCompact(hp)} / {formatCompact(maxHp)}
         {isLikelyBoss ? "" : " · trash"}
       </p>

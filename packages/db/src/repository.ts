@@ -1,16 +1,11 @@
 import type { PullSummary } from "@swtor/analytics";
 import type { CombatEvent, Signup } from "@swtor/shared";
 import { MongoClient, type Collection, type Db } from "mongodb";
-import { bucketFightEvents, mergeBuckets, type BucketOptions } from "./buckets.js";
+import type { BucketOptions } from "./buckets.js";
 import { generateReportCode } from "./codes.js";
 import { ensureIndexes } from "./indexes.js";
 import { summariseProgression, toFightSummary, type ProgressionEntry } from "./reports.js";
-import {
-  COLLECTIONS,
-  type FightEventBucketDocument,
-  type OperationEventDocument,
-  type ReportDocument,
-} from "./schema.js";
+import { COLLECTIONS, type OperationEventDocument, type ReportDocument } from "./schema.js";
 import { hashToken, issueToken, generateLinkCode, type IssuedToken } from "./tokens.js";
 import {
   USER_COLLECTIONS,
@@ -67,10 +62,6 @@ export class SwtorDatabase {
 
   get reports(): Collection<ReportDocument> {
     return this.#db.collection<ReportDocument>(COLLECTIONS.reports);
-  }
-
-  get buckets(): Collection<FightEventBucketDocument> {
-    return this.#db.collection<FightEventBucketDocument>(COLLECTIONS.fightEventBuckets);
   }
 
   get operations(): Collection<OperationEventDocument> {
@@ -231,31 +222,17 @@ export class SwtorDatabase {
     return report;
   }
 
-  /** Appends a completed pull and writes its raw events as buckets. */
+  /** Appends a completed pull and stores only the fight summary. */
   async appendFight(
     reportCode: string,
     guildId: string,
     pull: PullSummary,
-    events: readonly CombatEvent[],
+    _events: readonly CombatEvent[],
   ): Promise<number> {
     const report = await this.reports.findOne({ code: reportCode, guildId });
     if (report === null) throw new Error(`Unknown report ${reportCode}`);
 
     const fightId = report.fights.length + 1;
-
-    if (events.length > 0) {
-      const buckets = bucketFightEvents(
-        {
-          guildId,
-          reportCode,
-          fightId,
-          fightStartedAt: pull.startedAt,
-          events: [...events],
-        },
-        this.#bucketOptions,
-      );
-      await this.buckets.insertMany(buckets, { ordered: false });
-    }
 
     await this.reports.updateOne(
       { code: reportCode, guildId },
@@ -283,14 +260,12 @@ export class SwtorDatabase {
     return this.reports.find({ guildId }).sort({ startedAt: -1 }).limit(limit).toArray();
   }
 
-  /** Returns null when the events have aged out under the retention policy. */
   async getFightEvents(
-    guildId: string,
-    reportCode: string,
-    fightId: number,
+    _guildId: string,
+    _reportCode: string,
+    _fightId: number,
   ): Promise<CombatEvent[] | null> {
-    const buckets = await this.buckets.find({ guildId, reportCode, fightId }).toArray();
-    return buckets.length === 0 ? null : mergeBuckets(buckets);
+    return null;
   }
 
   async progression(guildId: string): Promise<ProgressionEntry[]> {

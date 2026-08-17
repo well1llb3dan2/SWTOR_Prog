@@ -3,6 +3,7 @@
 import type { MeterSnapshot } from "@swtor/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
+import { API_BASE_URL } from "./apiBase";
 
 export type LiveStatus = "connecting" | "live" | "waiting" | "disconnected" | "error";
 
@@ -21,7 +22,7 @@ export interface LiveSession {
   error: string | null;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+const API_URL = API_BASE_URL;
 
 /**
  * Subscribes to a session's live meter feed.
@@ -35,6 +36,7 @@ export function useLiveSession(sessionId: string): LiveSession {
   const [history, setHistory] = useState<CompletedPull[]>([]);
   const [error, setError] = useState<string | null>(null);
   const socketRef = useRef<Socket | null>(null);
+  const snapshotTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (sessionId.length === 0) return;
@@ -50,16 +52,29 @@ export function useLiveSession(sessionId: string): LiveSession {
       });
     });
 
+    const clearSnapshotGrace = () => {
+      if (snapshotTimeoutRef.current !== null) {
+        clearTimeout(snapshotTimeoutRef.current);
+      }
+      snapshotTimeoutRef.current = window.setTimeout(() => {
+        setSnapshot(null);
+      }, 2_500);
+    };
+
     socket.on("snapshot", (next: MeterSnapshot) => {
       if (next.sessionId !== sessionId) return;
+      if (snapshotTimeoutRef.current !== null) {
+        clearTimeout(snapshotTimeoutRef.current);
+        snapshotTimeoutRef.current = null;
+      }
       setSnapshot(next);
       setStatus("live");
     });
 
     socket.on("pull:complete", (pull: CompletedPull) => {
-      setSnapshot(null);
       setStatus("waiting");
       setHistory((previous) => [pull, ...previous].slice(0, 50));
+      clearSnapshotGrace();
     });
 
     socket.on("disconnect", () => setStatus("disconnected"));
@@ -69,6 +84,9 @@ export function useLiveSession(sessionId: string): LiveSession {
     });
 
     return () => {
+      if (snapshotTimeoutRef.current !== null) {
+        clearTimeout(snapshotTimeoutRef.current);
+      }
       socket.close();
       socketRef.current = null;
     };

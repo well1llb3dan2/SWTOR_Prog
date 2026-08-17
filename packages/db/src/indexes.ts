@@ -11,28 +11,9 @@ export interface IndexPlan {
  * Index plan for the whole database.
  *
  * Every query path is tenanted, so `guildId` leads each compound index; that
- * also keeps a future shard key straightforward. The bucket collection is
- * deliberately sparse on indexes because it holds by far the most documents.
+ * also keeps a future shard key straightforward.
  */
-export function buildIndexPlan(retentionDays: number | null): IndexPlan[] {
-  const bucketIndexes: IndexDescription[] = [
-    {
-      key: { reportCode: 1, fightId: 1, bucketIndex: 1, part: 1 },
-      name: "bucket_lookup",
-      unique: true,
-    },
-    { key: { guildId: 1, reportCode: 1 }, name: "bucket_by_guild" },
-  ];
-
-  if (retentionDays !== null) {
-    // TTL fires on the field, so buckets written with a null expiry are exempt.
-    bucketIndexes.push({
-      key: { expiresAt: 1 },
-      name: "bucket_ttl",
-      expireAfterSeconds: 0,
-    });
-  }
-
+export function buildIndexPlan(_retentionDays: number | null): IndexPlan[] {
   return [
     {
       collection: COLLECTIONS.reports,
@@ -46,7 +27,6 @@ export function buildIndexPlan(retentionDays: number | null): IndexPlan[] {
         { key: { guildId: 1, ownerUserId: 1, startedAt: -1 }, name: "report_by_owner" },
       ],
     },
-    { collection: COLLECTIONS.fightEventBuckets, indexes: bucketIndexes },
     {
       collection: USER_COLLECTIONS.users,
       indexes: [

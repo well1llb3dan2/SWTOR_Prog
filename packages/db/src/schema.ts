@@ -5,7 +5,7 @@ import type {
   EncounterRef,
   RosterEntry,
 } from "@swtor/analytics";
-import type { CombatEvent, Difficulty, GroupSize, RosterLimits, Signup } from "@swtor/shared";
+import type { Difficulty, GroupSize, RosterLimits, Signup } from "@swtor/shared";
 
 /**
  * Every document carries `guildId`.
@@ -36,7 +36,7 @@ export interface ReportDocument extends Tenanted {
   updatedAt: Date;
 }
 
-/** Fight metadata. Raw events live in bucket documents, never here. */
+/** Fight metadata persisted for reporting and progression views. */
 export interface FightSummaryDocument {
   fightId: number;
   startedAt: Date;
@@ -50,28 +50,6 @@ export interface FightSummaryDocument {
   outcome: "kill" | "wipe" | "incomplete";
   actors: ActorRates[];
   deaths: DeathRecord[];
-}
-
-/**
- * Bucket-pattern storage for raw combat events.
- *
- * Events are grouped into fixed time slices so a busy fight becomes tens of
- * documents rather than hundreds of thousands, which keeps index overhead flat.
- * `part` exists because a 10-second slice of an eight-player operation can
- * approach the 16MB document ceiling on its own; overflow rolls into part 1, 2
- * and so on rather than failing the write.
- */
-export interface FightEventBucketDocument extends Tenanted {
-  reportCode: string;
-  fightId: number;
-  bucketIndex: number;
-  part: number;
-  startedAt: Date;
-  endedAt: Date;
-  eventCount: number;
-  events: CombatEvent[];
-  /** Set when a retention window is configured; drives the TTL index. */
-  expiresAt: Date | null;
 }
 
 export type { RosterLimits, Signup, SignupStatus } from "@swtor/shared";
@@ -101,6 +79,5 @@ export interface OperationEventDocument extends Tenanted {
 
 export const COLLECTIONS = {
   reports: "reports",
-  fightEventBuckets: "fightEventBuckets",
   operationEvents: "operationEvents",
 } as const;

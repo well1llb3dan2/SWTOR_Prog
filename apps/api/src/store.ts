@@ -1,12 +1,9 @@
 import type { PullSummary } from "@swtor/analytics";
 import {
   SwtorDatabase,
-  bucketFightEvents,
   generateReportCode,
-  mergeBuckets,
   summariseProgression,
   toFightSummary,
-  type FightEventBucketDocument,
   type ProgressionEntry,
   type ReportDocument,
 } from "@swtor/db";
@@ -87,7 +84,6 @@ export class MongoReportStore implements ReportStore {
 /** Non-durable store used for local runs, replay sessions and tests. */
 export class MemoryReportStore implements ReportStore {
   readonly #reports = new Map<string, ReportDocument>();
-  readonly #buckets: FightEventBucketDocument[] = [];
 
   async createReport(input: CreateReportInput): Promise<ReportDocument> {
     const now = new Date();
@@ -131,18 +127,6 @@ export class MemoryReportStore implements ReportStore {
     report.roster = pull.roster;
     report.updatedAt = new Date();
 
-    if (events.length > 0) {
-      this.#buckets.push(
-        ...bucketFightEvents({
-          guildId,
-          reportCode: code,
-          fightId,
-          fightStartedAt: pull.startedAt,
-          events: [...events],
-        }),
-      );
-    }
-
     return fightId;
   }
 
@@ -158,15 +142,8 @@ export class MemoryReportStore implements ReportStore {
       .slice(0, limit);
   }
 
-  async getFightEvents(
-    guildId: string,
-    code: string,
-    fightId: number,
-  ): Promise<CombatEvent[] | null> {
-    const buckets = this.#buckets.filter(
-      (b) => b.guildId === guildId && b.reportCode === code && b.fightId === fightId,
-    );
-    return buckets.length === 0 ? null : mergeBuckets(buckets);
+  async getFightEvents(_guildId: string, _code: string, _fightId: number): Promise<CombatEvent[] | null> {
+    return null;
   }
 
   async progression(guildId: string): Promise<ProgressionEntry[]> {

@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("desktop", {
   pickLogDirectory: () => ipcRenderer.invoke("dialog:log-directory"),
   pickReplayFile: () => ipcRenderer.invoke("dialog:replay-file"),
   redeemLinkCode: (code: string) => ipcRenderer.invoke("link:redeem", code),
+  checkApiHealth: () => ipcRenderer.invoke("api:health"),
+  listReports: (limit: number) => ipcRenderer.invoke("api:reports", limit),
   startLive: () => ipcRenderer.invoke("stream:start-live"),
   startReplay: (filePath: string, speed: number) =>
     ipcRenderer.invoke("stream:start-replay", filePath, speed),

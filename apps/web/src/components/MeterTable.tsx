@@ -25,16 +25,18 @@ export function MeterTable({ rows, metric, unit }: Props) {
             style={{ width: `${row.share * 100}%`, background: roleAccent(row.role) }}
             aria-hidden
           />
-          <div className="relative flex items-center gap-3 px-4 py-2.5">
-            <span className="w-5 text-xs text-[var(--color-muted)] tabular">{index + 1}</span>
+          <div className="relative flex items-center gap-2 px-3 py-1.5 sm:gap-3 sm:px-4 sm:py-2.5">
+            <span className="w-4 text-[10px] text-[var(--color-muted)] tabular sm:w-5 sm:text-xs">
+              {index + 1}
+            </span>
             <span
-              className="h-6 w-1 rounded-full"
+              className="h-5 w-1 rounded-full sm:h-6"
               style={{ background: roleAccent(row.role) }}
               aria-hidden
             />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{row.name}</p>
-              <p className="truncate text-xs text-[var(--color-muted)]">
+              <p className="truncate text-xs font-medium sm:text-sm">{row.name}</p>
+              <p className="truncate text-[10px] text-[var(--color-muted)] sm:text-xs">
                 {row.discipline ?? "Unknown discipline"}
                 {row.deaths > 0 ? ` · ${row.deaths} death${row.deaths === 1 ? "" : "s"}` : ""}
                 {metric === "hps" && row.overhealPercent > 0
@@ -43,8 +45,8 @@ export function MeterTable({ rows, metric, unit }: Props) {
               </p>
             </div>
             <div className="text-right">
-              <p className="tabular text-sm font-semibold">{formatCompact(row.rate)}</p>
-              <p className="tabular text-xs text-[var(--color-muted)]">
+              <p className="tabular text-xs font-semibold sm:text-sm">{formatCompact(row.rate)}</p>
+              <p className="tabular text-[10px] text-[var(--color-muted)] sm:text-xs">
                 {formatCompact(row.total)}
               </p>
             </div>

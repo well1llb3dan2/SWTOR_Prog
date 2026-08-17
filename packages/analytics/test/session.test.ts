@@ -27,6 +27,15 @@ const BOSS = {
   hp: 5_000_000,
   maxHp: 21_829_804,
 } as const;
+const TRASH = {
+  kind: "npc",
+  name: "Trash Mob",
+  npcId: "trash",
+  instanceId: "2",
+  position: null,
+  hp: 4_000,
+  maxHp: 4_000,
+} as const;
 
 function magnitude(amount: number, effective = amount): MagnitudeValue {
   return {
@@ -159,6 +168,19 @@ describe("fight boundaries", () => {
     expect(session.pulls[0]!.durationMs).toBe(5_000);
   });
 
+  it("closes immediately once the last engaged enemy dies", () => {
+    const session = new CombatSession();
+    session.push(areaEntered(0));
+    session.push(damage(1_000, LOCAL, TRASH));
+    session.push(damage(2_000, ALLY, TRASH));
+    session.push(damage(5_000, LOCAL, TRASH));
+    session.push(death(5_000, TRASH));
+
+    expect(session.current(5_000)).toBeNull();
+    expect(session.pulls).toHaveLength(1);
+    expect(session.pulls[0]!.outcome).toBe("kill");
+  });
+
   it("splits two pulls separated by a long gap", () => {
     const pulls = analyzeEvents([
       areaEntered(0),
@@ -255,6 +277,18 @@ describe("wipes", () => {
 
     expect(pulls[0]!.outcome).toBe("wipe");
     expect(pulls[0]!.deaths.map((d) => d.name)).toEqual(["Local", "Ally"]);
+  });
+
+  it("treats a clearing kill as a kill even when the target is trash", () => {
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, TRASH),
+      damage(2_000, ALLY, TRASH),
+      damage(5_000, LOCAL, TRASH),
+      death(5_000, TRASH),
+    ]);
+
+    expect(pulls[0]!.outcome).toBe("kill");
   });
 
   it("attributes the killing blow to the last hit taken", () => {

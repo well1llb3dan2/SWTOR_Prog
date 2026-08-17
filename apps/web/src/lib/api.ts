@@ -93,7 +93,9 @@ export interface DeathAudit {
   defensivesUsed: string[];
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+import { API_BASE_URL } from "./apiBase";
+
+const API_URL = API_BASE_URL;
 
 async function get<T>(path: string): Promise<{ data: T | null; error: string | null }> {
   try {
