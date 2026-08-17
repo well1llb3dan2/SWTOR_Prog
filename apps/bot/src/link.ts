@@ -35,11 +35,14 @@ export async function requestLinkCode(
  */
 export function buildLinkMessage(code: string, expiresInSeconds: number, webUrl: string): string {
   const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
+  const portalUrl = new URL("/me", webUrl);
+  portalUrl.searchParams.set("linkCode", code);
+
   return [
     `Your link code is **${code}**`,
     "",
-    `Open the desktop streamer, choose **Link with code**, and enter it. ` +
-      `The code works once and expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
-    `You can also manage characters and tokens at ${webUrl}/me`,
+    `finish linking in the portal: ${portalUrl.toString()}`,
+    `The code works once and expires in ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    `If you prefer, you can still open the desktop streamer and enter the code manually.`,
   ].join("\n");
 }

@@ -16,6 +16,7 @@ import {
 
 const SESSION_COOKIE = "swtor_session";
 const STATE_COOKIE = "swtor_oauth_state";
+const LINK_CODE_COOKIE = "swtor_link_code";
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14;
 
 export interface AuthRouteDeps {
@@ -25,11 +26,15 @@ export interface AuthRouteDeps {
   fetchImpl?: Fetcher;
 }
 
-function readSession(request: FastifyRequest): string | null {
-  const raw = request.cookies[SESSION_COOKIE];
+function readSignedCookie(request: FastifyRequest, name: string): string | null {
+  const raw = request.cookies[name];
   if (raw === undefined) return null;
   const unsigned = request.unsignCookie(raw);
   return unsigned.valid && unsigned.value !== null ? unsigned.value : null;
+}
+
+function readSession(request: FastifyRequest): string | null {
+  return readSignedCookie(request, SESSION_COOKIE);
 }
 
 export function currentDiscordId(request: FastifyRequest): string | null {
@@ -42,7 +47,7 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
 
   const cookieOptions = {
     httpOnly: true,
-    sameSite: "lax" as const,
+    sameSite: (config.cookieSecure ? "none" : "lax") as "none" | "lax",
     secure: config.cookieSecure,
     path: "/",
     signed: true,
@@ -81,10 +86,20 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
   const discord = config.discord;
   const secret = config.sessionSecret!;
 
-  app.get("/auth/discord", async (_request, reply) => {
+  app.get("/auth/discord", async (request, reply) => {
+    const query = z
+      .object({ linkCode: z.string().min(4).max(16).optional() })
+      .safeParse(request.query);
+    const linkCode = query.success && query.data.linkCode !== undefined ? query.data.linkCode.trim().toUpperCase() : null;
     const state = createState(secret);
+
     return reply
       .setCookie(STATE_COOKIE, state, { ...cookieOptions, maxAge: 600 })
+      .setCookie(
+        LINK_CODE_COOKIE,
+        linkCode ?? "",
+        { ...cookieOptions, maxAge: 600, expires: linkCode === null ? new Date(0) : undefined },
+      )
       .redirect(buildAuthorizeUrl(discord, state));
   });
 
@@ -97,6 +112,7 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const cookie = request.cookies[STATE_COOKIE];
     const unsigned = cookie === undefined ? null : request.unsignCookie(cookie);
     const expected = unsigned?.valid === true ? unsigned.value : null;
+    const linkCode = readSignedCookie(request, LINK_CODE_COOKIE);
 
     // Both checks matter: the signature proves we issued the state, and the
     // cookie comparison proves it came back through the same browser.
@@ -119,13 +135,19 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
         ...membership,
       });
 
+      const redirectTarget = new URL("/me", config.webUrl);
+      if (linkCode !== null && linkCode.length > 0) {
+        redirectTarget.searchParams.set("linkCode", linkCode);
+      }
+
       return reply
         .clearCookie(STATE_COOKIE, cookieOptions)
+        .clearCookie(LINK_CODE_COOKIE, cookieOptions)
         .setCookie(SESSION_COOKIE, identity.id, {
           ...cookieOptions,
           maxAge: SESSION_MAX_AGE_SECONDS,
         })
-        .redirect(`${config.webUrl}/me`);
+        .redirect(redirectTarget.toString());
     } catch (error: unknown) {
       app.log.warn({ err: error }, "discord sign-in failed");
       return reply.code(502).send({ error: "Discord sign-in failed" });

@@ -92,6 +92,14 @@ $("redeem").addEventListener("click", async () => {
   await refreshApiStatus();
 });
 
+$("openPortal").addEventListener("click", async () => {
+  const code = $("linkCode").value.trim();
+  const result = await window.desktop.openLinkPortal(code.length > 0 ? code : undefined);
+  if (!result.ok) {
+    $("detail").textContent = result.error ?? "Could not open the account portal";
+  }
+});
+
 $("startLive").addEventListener("click", async () => {
   showError(await window.desktop.startLive());
 });

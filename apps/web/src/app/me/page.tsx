@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/lib/apiBase";
 import { roleAccent } from "@/lib/meters";
 
@@ -39,12 +40,16 @@ const send = (path: string, init: RequestInit = {}) =>
     ...init,
   });
 
-export default function AccountPage() {
+function AccountPageContent() {
+  const searchParams = useSearchParams();
   const [me, setMe] = useState<Me | null>(null);
   const [available, setAvailable] = useState<Character[]>([]);
   const [freshToken, setFreshToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+  const [usedLinkCode, setUsedLinkCode] = useState<string | null>(null);
+
+  const linkCode = searchParams.get("linkCode")?.trim().toUpperCase() ?? null;
 
   const refresh = useCallback(async () => {
     const response = await send("/api/me");
@@ -62,6 +67,33 @@ export default function AccountPage() {
     void refresh();
   }, [refresh]);
 
+  useEffect(() => {
+    if (me === null || linkCode === null || usedLinkCode === linkCode) return;
+
+    let cancelled = false;
+    void (async () => {
+      const response = await send("/api/link/redeem", {
+        method: "POST",
+        body: JSON.stringify({ code: linkCode }),
+      });
+      const body = (await response.json().catch(() => null)) as { error?: string; username?: string } | null;
+
+      if (cancelled) return;
+      if (!response.ok) {
+        setMessage(body?.error ?? "That link code could not be used.");
+        setUsedLinkCode(linkCode);
+        return;
+      }
+
+      setMessage(`Linked successfully as ${body?.username ?? "your account"}. You can now generate a token or link characters.`);
+      setUsedLinkCode(linkCode);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [linkCode, me, usedLinkCode]);
+
   if (loading) {
     return <p className="panel rounded-md px-6 py-16 text-center text-sm">Loading…</p>;
   }
@@ -74,8 +106,13 @@ export default function AccountPage() {
           <p className="text-sm text-[var(--color-muted)]">
             Sign in with Discord to link your characters and generate a streaming token.
           </p>
+          {linkCode !== null ? (
+            <p className="mt-3 text-sm text-[var(--color-gold)]">
+              A one-time link code was found. Sign in with Discord to finish linking it.
+            </p>
+          ) : null}
           <a
-            href={`${API_URL}/auth/discord`}
+            href={`${API_URL}/auth/discord${linkCode === null ? "" : `?linkCode=${encodeURIComponent(linkCode)}`}`}
             className="mt-4 inline-block rounded border border-[var(--color-gold)] px-5 py-2 text-xs uppercase tracking-[0.15em] text-[var(--color-gold)] transition hover:bg-[var(--color-gold)]/10"
           >
             Continue with Discord
@@ -246,5 +283,13 @@ export default function AccountPage() {
         </button>
       </section>
     </main>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <Suspense fallback={<p className="panel rounded-md px-6 py-16 text-center text-sm">Loading…</p>}>
+      <AccountPageContent />
+    </Suspense>
   );
 }
