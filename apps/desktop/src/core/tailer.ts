@@ -1,6 +1,7 @@
 import { open, stat } from "node:fs/promises";
-import { StringDecoder } from "node:string_decoder";
+import { TextDecoder } from "node:util";
 import { newestLogFile, type LogFileInfo } from "./logDirectory.js";
+import { decodeLogText } from "./encoding.js";
 
 export interface TailerEvents {
   onLines: (lines: string[], file: LogFileInfo) => void;
@@ -34,8 +35,9 @@ export class LogTailer {
   #currentPath: string | null = null;
   #offset = 0;
   #partial = "";
-  #decoder = new StringDecoder("utf8");
   #polling = false;
+  #latin1Mode = false;
+  #utf8Decoder = new TextDecoder("utf-8");
 
   constructor(directory: string, options: TailerOptions) {
     this.#directory = directory;
@@ -117,7 +119,8 @@ export class LogTailer {
     this.#currentPath = path;
     this.#offset = 0;
     this.#partial = "";
-    this.#decoder = new StringDecoder("utf8");
+    this.#latin1Mode = false;
+    this.#utf8Decoder = new TextDecoder("utf-8");
   }
 
   async #readFrom(path: string, upTo: number): Promise<string[]> {
@@ -132,10 +135,22 @@ export class LogTailer {
         if (bytesRead === 0) break;
         this.#offset += bytesRead;
 
-        // The decoder holds back partial multi-byte sequences, which matters
-        // because character names are routinely non-ASCII.
-        let text = this.#decoder.write(buffer.subarray(0, bytesRead));
-        if (this.#partial.length === 0 && lines.length === 0) text = text.replace(/^\uFEFF/, "");
+        const chunk = buffer.subarray(0, bytesRead);
+        let text = "";
+
+        if (this.#latin1Mode) {
+          text = chunk.toString("latin1");
+        } else {
+          text = this.#utf8Decoder.decode(chunk, { stream: true });
+          if (text.includes("�") || text.includes("\uFFFD")) {
+            this.#latin1Mode = true;
+            text = chunk.toString("latin1");
+          }
+        }
+
+        if (this.#partial.length === 0 && lines.length === 0) {
+          text = text.replace(/^\uFEFF/, "");
+        }
 
         this.#partial += text;
         const parts = this.#partial.split(/\r?\n/);

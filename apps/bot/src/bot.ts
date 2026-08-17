@@ -26,6 +26,20 @@ interface ProgressionEntry {
   bestWipeHpPercent: number | null;
 }
 
+export function waitForClientReady(client: { once: (event: string, handler: () => void) => unknown; on: (event: string, handler: (error: Error) => void) => unknown }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const settled = { done: false };
+    const finish = (callback: () => void) => {
+      if (settled.done) return;
+      settled.done = true;
+      callback();
+    };
+
+    client.once("ready", () => finish(resolve));
+    client.once("error", (error: Error) => finish(() => reject(error)));
+  });
+}
+
 /**
  * Loads existing progression so a restart does not re-announce a first kill
  * the guild already celebrated.
@@ -54,7 +68,7 @@ export async function startBot(config: BotConfig): Promise<() => Promise<void>> 
   });
 
   await client.login(config.discordToken);
-  await new Promise<void>((resolve) => client.once("clientReady", () => resolve()));
+  await waitForClientReady(client);
 
   const channel = await client.channels.fetch(config.progressionChannelId);
   if (channel === null || !channel.isTextBased() || !("send" in channel)) {

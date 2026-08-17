@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
-import { LogParser } from "@swtor/parser";
+import { LogParser, parseLogBuffer } from "@swtor/parser";
 import type { CombatEvent } from "@swtor/shared";
 
 export interface ReplayOptions {
@@ -54,9 +54,8 @@ export class ReplaySource {
   }
 
   async load(): Promise<number> {
-    const text = (await readFile(this.#options.filePath, "utf8")).replace(/^\uFEFF/, "");
-    const parser = new LogParser({ fileName: this.fileName });
-    this.#events = parser.pushAll(text.split(/\r?\n/));
+    const buffer = await readFile(this.#options.filePath);
+    this.#events = parseLogBuffer(this.fileName, buffer);
     this.#cursor = 0;
     this.#virtualNow = this.startedAt;
     return this.#events.length;

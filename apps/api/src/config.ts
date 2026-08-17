@@ -130,7 +130,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
             clientId: parsed.DISCORD_CLIENT_ID,
             clientSecret: parsed.DISCORD_CLIENT_SECRET,
             guildId: parsed.DISCORD_GUILD_ID,
-            redirectUri: `${parsed.PUBLIC_API_URL}/auth/discord/callback`,
+            redirectUri: new URL("/auth/discord/callback", parsed.PUBLIC_API_URL).toString(),
             moderatorRoleIds: ids(parsed.DISCORD_MODERATOR_ROLE_IDS),
             memberRoleIds: ids(parsed.DISCORD_MEMBER_ROLE_IDS),
           },

@@ -3,6 +3,17 @@ import { parseLine } from "./parseLine.js";
 import { scanLine } from "./scanner.js";
 import { parseLogFileName, TimelineClock, type LogFileIdentity } from "./timeline.js";
 
+export function decodeLogText(buffer: Buffer): string {
+  if (buffer.length === 0) return "";
+
+  const utf8Text = buffer.toString("utf8");
+  if (!utf8Text.includes("�") && !utf8Text.includes("\uFFFD")) {
+    return utf8Text.replace(/^\uFEFF/, "");
+  }
+
+  return buffer.toString("latin1").replace(/^\uFEFF/, "");
+}
+
 export * from "./scanner.js";
 export * from "./actor.js";
 export * from "./value.js";
@@ -60,4 +71,8 @@ export class LogParser {
 export function parseLogText(fileName: string, text: string): CombatEvent[] {
   const parser = new LogParser({ fileName });
   return parser.pushAll(text.split(/\r?\n/));
+}
+
+export function parseLogBuffer(fileName: string, buffer: Buffer): CombatEvent[] {
+  return parseLogText(fileName, decodeLogText(buffer));
 }
