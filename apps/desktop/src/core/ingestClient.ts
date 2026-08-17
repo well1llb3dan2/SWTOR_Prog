@@ -172,7 +172,9 @@ export class IngestClient {
         resolve(ack);
       };
       // A lost connection never acks, so time out rather than stall the queue.
-      const timer = setTimeout(() => done({ ok: false, error: "timeout" }), 15_000);
+      // For long-running flashpoint parses we prefer a retry-friendly error over
+      // a hard stop so the queue can recover once the socket reconnects.
+      const timer = setTimeout(() => done({ ok: false, error: "timeout" }), 30_000);
       socket.emit(event, payload, (ack: Ack) => {
         clearTimeout(timer);
         done(ack ?? { ok: false, error: "no ack" });

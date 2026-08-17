@@ -84,6 +84,7 @@ export class MongoReportStore implements ReportStore {
 /** Non-durable store used for local runs, replay sessions and tests. */
 export class MemoryReportStore implements ReportStore {
   readonly #reports = new Map<string, ReportDocument>();
+  readonly #fightEvents = new Map<string, Map<number, CombatEvent[]>>();
 
   async createReport(input: CreateReportInput): Promise<ReportDocument> {
     const now = new Date();
@@ -104,6 +105,7 @@ export class MemoryReportStore implements ReportStore {
       updatedAt: now,
     };
     this.#reports.set(report.code, report);
+    this.#fightEvents.set(report.code, new Map());
     return report;
   }
 
@@ -127,6 +129,11 @@ export class MemoryReportStore implements ReportStore {
     report.roster = pull.roster;
     report.updatedAt = new Date();
 
+    const fightEvents = this.#fightEvents.get(code);
+    if (fightEvents !== undefined) {
+      fightEvents.set(fightId, [...events]);
+    }
+
     return fightId;
   }
 
@@ -142,8 +149,9 @@ export class MemoryReportStore implements ReportStore {
       .slice(0, limit);
   }
 
-  async getFightEvents(_guildId: string, _code: string, _fightId: number): Promise<CombatEvent[] | null> {
-    return null;
+  async getFightEvents(_guildId: string, code: string, fightId: number): Promise<CombatEvent[] | null> {
+    const fightEvents = this.#fightEvents.get(code);
+    return fightEvents?.get(fightId) ?? null;
   }
 
   async progression(guildId: string): Promise<ProgressionEntry[]> {

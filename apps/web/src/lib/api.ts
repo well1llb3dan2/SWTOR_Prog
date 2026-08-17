@@ -108,6 +108,8 @@ async function get<T>(path: string): Promise<{ data: T | null; error: string | n
   }
 }
 
+export const fetchReports = (limit = 50) => get<ReportDetail[]>(`/api/reports?limit=${limit}`);
+
 export const fetchReport = (code: string) => get<ReportDetail>(`/api/reports/${code}`);
 
 export const fetchDeaths = (code: string, fightId: number) =>

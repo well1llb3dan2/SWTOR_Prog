@@ -97,6 +97,19 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const upcomingEvents = [...events]
+    .filter((event) => event.cancelledAt === null)
+    .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
+  const nextEvent = upcomingEvents[0] ?? null;
+  const openRosterSlots = upcomingEvents.reduce((total, event) => {
+    const rosterSlots = [event.roster.tanks, event.roster.healers, event.roster.dps].reduce(
+      (sum, group) => sum + Math.max(0, group.limit - group.confirmed.length),
+      0,
+    );
+    return total + rosterSlots;
+  }, 0);
+  const joinedCount = events.reduce((total, event) => total + event.signups.length, 0);
+
   const refresh = useCallback(async () => {
     try {
       const [operations, session] = await Promise.all([send("/api/operations"), send("/api/me")]);
@@ -148,6 +161,38 @@ export default function CalendarPage() {
       {error !== null ? (
         <p className="panel rounded-md px-4 py-3 text-sm text-red-300">{error}</p>
       ) : null}
+
+      <section className="panel rounded-md p-5">
+        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.7fr_0.7fr]">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Next mission</p>
+            {nextEvent ? (
+              <>
+                <h2 className="mt-1 text-lg uppercase">{nextEvent.title}</h2>
+                <p className="mt-1 text-sm text-[var(--color-muted)]">
+                  {new Date(nextEvent.scheduledFor).toLocaleString("en-GB", {
+                    timeZone: TIME_ZONE,
+                    dateStyle: "full",
+                    timeStyle: "short",
+                  })}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-sm text-[var(--color-muted)]">No missions are currently queued.</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Roster pressure</p>
+            <p className="mt-1 text-2xl uppercase">{openRosterSlots}</p>
+            <p className="text-sm text-[var(--color-muted)]">open roster slots across upcoming events</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Response volume</p>
+            <p className="mt-1 text-2xl uppercase">{joinedCount}</p>
+            <p className="text-sm text-[var(--color-muted)]">responses logged across the calendar</p>
+          </div>
+        </div>
+      </section>
 
       {loading ? (
         <p className="panel rounded-md px-6 py-16 text-center text-sm">Loading…</p>

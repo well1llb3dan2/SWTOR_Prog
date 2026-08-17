@@ -21,6 +21,14 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
 
   const kills = report.fights.filter((f) => f.outcome === "kill").length;
   const bossFights = report.fights.filter((f) => f.boss?.isLikelyBoss === true);
+  const wipes = report.fights.filter((f) => f.outcome === "wipe").length;
+  const incomplete = report.fights.filter((f) => f.outcome === "incomplete").length;
+  const totalDeaths = report.fights.reduce((sum, fight) => sum + fight.deaths.length, 0);
+  const totalDamage = report.fights.reduce(
+    (sum, fight) => sum + fight.actors.reduce((actorSum, actor) => actorSum + actor.damage, 0),
+    0,
+  );
+  const highlightFight = bossFights[0] ?? report.fights[0] ?? null;
 
   return (
     <main className="space-y-6">
@@ -40,6 +48,44 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
           {report.fights.length} pulls · {kills} kills · {bossFights.length} boss encounters
         </p>
       </header>
+
+      <section className="panel rounded-md p-5">
+        <div className="grid gap-3 rounded border border-[var(--color-line)] bg-black/20 p-4 md:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Combat debrief</p>
+            <p className="mt-2 text-lg uppercase">The raid’s key outcomes are now called out directly</p>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">
+              This report package surfaces the crucial shifts in execute pacing and encounter handling.
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Kills</p>
+            <p className="mt-2 text-2xl uppercase">{kills}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Wipes</p>
+            <p className="mt-2 text-2xl uppercase">{wipes}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Deaths</p>
+            <p className="mt-2 text-2xl uppercase">{totalDeaths}</p>
+          </div>
+        </div>
+
+        {highlightFight ? (
+          <div className="mt-4 rounded border border-[var(--color-line)] p-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Primary highlight</p>
+            <p className="mt-2 text-sm uppercase">
+              {highlightFight.encounter?.encounterName ?? highlightFight.boss?.name ?? "Encounter"}
+            </p>
+            <p className="mt-2 text-sm text-[var(--color-muted)]">
+              {highlightFight.outcome === "kill"
+                ? "This encounter resolved cleanly and should be treated as a progression signal."
+                : "This encounter still needs better execution discipline to convert into a clear."}
+            </p>
+          </div>
+        ) : null}
+      </section>
 
       {report.roster.length > 0 ? (
         <section className="panel rounded-md p-5">
@@ -65,9 +111,12 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
       ) : null}
 
       <section className="panel overflow-hidden rounded-md">
-        <h2 className="border-b border-[var(--color-line)] px-4 py-3 text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-          Pulls
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-4 py-3">
+          <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Pulls</h2>
+          <p className="text-xs text-[var(--color-muted)]">
+            {incomplete > 0 ? `${incomplete} incomplete` : "All pulls resolved"}
+          </p>
+        </div>
         <ul className="divide-y divide-[var(--color-line)]">
           {report.fights.map((fight) => (
             <li key={fight.fightId}>
@@ -111,13 +160,7 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
       ) : null}
 
       <p className="text-xs text-[var(--color-muted)]">
-        Log {report.logFileName} · total damage{" "}
-        {formatCompact(
-          report.fights.reduce(
-            (sum, fight) => sum + fight.actors.reduce((a, actor) => a + actor.damage, 0),
-            0,
-          ),
-        )}
+        Log {report.logFileName} · total damage {formatCompact(totalDamage)}
       </p>
     </main>
   );

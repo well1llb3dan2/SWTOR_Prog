@@ -86,6 +86,7 @@ export class IngestSession {
         this.#pullOpen = false;
         const events = this.#buffer;
         this.#buffer = [];
+        if (pull.boss?.isLikelyBoss !== true) return;
         init.onPullEnd(pull, events);
       },
     });
@@ -127,7 +128,7 @@ export class IngestSession {
 
   snapshot(wallNow: number): MeterSnapshot | null {
     const pull = this.#combat.current(this.#eventTime(wallNow));
-    if (pull === null) return null;
+    if (pull === null || pull.boss?.isLikelyBoss !== true) return null;
 
     return {
       sessionId: this.sessionId,

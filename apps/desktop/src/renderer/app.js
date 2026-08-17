@@ -9,7 +9,7 @@ async function refreshSettings() {
   $("authState").textContent = settings.hasToken
     ? "Discord linked. You can start streaming now."
     : "Discord not linked.";
-  $("discordLogin").textContent = settings.hasToken ? "Sign out" : "Sign out";
+  $("discordLogin").textContent = settings.hasToken ? "Sign out" : "Sign in with Discord";
 }
 
 function render(status) {

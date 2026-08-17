@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { API_BASE_URL } from "@/lib/apiBase";
+import { CommandDeck } from "@/components/commandDeck";
+import { MissionTimeline } from "@/components/missionTimeline";
 
 const API_URL = API_BASE_URL;
 
@@ -109,20 +111,60 @@ export default function HomePage() {
         )}
       </section>
 
+      <section className="rounded-md border border-[var(--color-line)] bg-black/25 p-5 backdrop-blur">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Current objective</p>
+            <p className="mt-1 text-lg uppercase">Protect the execute window and convert clean clears</p>
+          </div>
+          <span className="rounded border border-[var(--color-republic)]/40 bg-[var(--color-republic)]/10 px-3 py-1 text-xs uppercase tracking-[0.12em] text-[var(--color-republic)]">
+            Priority: burst timing
+          </span>
+        </div>
+      </section>
+
+      <CommandDeck />
+      <MissionTimeline />
+
+      <section className="grid gap-3 md:grid-cols-3">
+        <div className="panel rounded-md p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Raid tempo</p>
+          <p className="mt-2 text-2xl uppercase">Stable</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">Recent pulls are converting into cleaner follow-up attempts.</p>
+        </div>
+        <div className="panel rounded-md p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Priority focus</p>
+          <p className="mt-2 text-2xl uppercase">Burst windows</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">The next gains should come from cleaner execute timing.</p>
+        </div>
+        <div className="panel rounded-md p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Guild posture</p>
+          <p className="mt-2 text-2xl uppercase">Ready</p>
+          <p className="mt-1 text-sm text-[var(--color-muted)]">Roster and mission briefs are aligned for the next push.</p>
+        </div>
+      </section>
+
       <section className="panel rounded-md p-6">
-        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Reports</h2>
+        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">Mission lanes</h2>
         <p className="mt-3 text-sm text-[var(--color-muted)]">
-          Completed pulls are archived automatically.
+          Each lane below leads to a focused part of the operations workflow.
         </p>
-        <div className="mt-4 flex flex-wrap gap-5">
-          <Link href="/reports" className="text-sm text-[var(--color-republic)] hover:underline">
-            Browse reports →
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <Link href="/reports" className="rounded border border-[var(--color-line)] p-3 transition hover:border-[var(--color-republic)]">
+            <p className="text-sm uppercase">Reports</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">Review archived clears and wipes.</p>
           </Link>
-          <Link href="/calendar" className="text-sm text-[var(--color-republic)] hover:underline">
-            Operation calendar →
+          <Link href="/progression" className="rounded border border-[var(--color-line)] p-3 transition hover:border-[var(--color-republic)]">
+            <p className="text-sm uppercase">Progression</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">Track boss momentum and encounter focus.</p>
           </Link>
-          <Link href="/me" className="text-sm text-[var(--color-republic)] hover:underline">
-            Your account →
+          <Link href="/operations" className="rounded border border-[var(--color-line)] p-3 transition hover:border-[var(--color-republic)]">
+            <p className="text-sm uppercase">Raid builder</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">Align the next roster and utility plan.</p>
+          </Link>
+          <Link href="/calendar" className="rounded border border-[var(--color-line)] p-3 transition hover:border-[var(--color-republic)]">
+            <p className="text-sm uppercase">Calendar</p>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">Review upcoming missions and responses.</p>
           </Link>
         </div>
       </section>

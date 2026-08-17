@@ -32,6 +32,16 @@ const BOSS = {
   maxHp: 1_000,
 } as const;
 
+const TRASH = {
+  kind: "npc",
+  name: "Trash Mob",
+  npcId: "trash",
+  instanceId: "2",
+  position: null,
+  hp: 100,
+  maxHp: 100,
+} as const;
+
 const base = (timestamp: number) => ({
   timestamp,
   lineNumber: 0,
@@ -51,11 +61,11 @@ const areaEntered = (t: number): CombatEvent => ({
   logVersion: "v7.0.0b",
 });
 
-const damage = (t: number): CombatEvent => ({
+const damage = (t: number, target = BOSS): CombatEvent => ({
   ...base(t),
   type: "damage",
   source: PLAYER,
-  target: BOSS,
+  target,
   value: magnitude(1_000),
 });
 
@@ -117,6 +127,17 @@ describe("IngestSession", () => {
     const [, events] = onPullEnd.mock.calls[0] as [unknown, CombatEvent[]];
     expect(events).toHaveLength(2);
     expect(events.every((e) => e.type === "damage")).toBe(true);
+  });
+
+  it("drops trash pulls from live snapshots and persistence callbacks", () => {
+    const { session, onPullEnd } = makeSession();
+    const logTime = Date.parse("2020-01-01T00:00:00Z");
+
+    session.push([areaEntered(logTime), damage(logTime + 1_000, TRASH)]);
+    expect(session.snapshot(Date.now())).toBeNull();
+
+    session.flush(Date.now() + 9_000);
+    expect(onPullEnd).not.toHaveBeenCalled();
   });
 
   it("counts every event it accepts", () => {
