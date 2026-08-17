@@ -7,7 +7,7 @@
   "author": "Infamous",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/swtor-analytics.git"
+    "url": "https://github.com/well1llb3dan2/SWTOR_Prog.git"
   },
   "main": "dist/main.cjs",
   "scripts": {
