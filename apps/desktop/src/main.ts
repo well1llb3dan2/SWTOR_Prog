@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { autoUpdater } from "electron-updater";
 import { fetchApiHealth, fetchApiReports } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { redeemLinkCode } from "./core/link.js";
@@ -13,6 +14,7 @@ import {
   type DesktopSettings,
 } from "./core/settings.js";
 import { LogStreamer } from "./core/streamer.js";
+import { buildAutoUpdateFeed } from "./core/updater.js";
 
 const CLIENT_VERSION = "0.1.0";
 const distDir = __dirname;
@@ -168,6 +170,8 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   settings = await loadSettings(settingsPath(app.getPath("userData")));
+  autoUpdater.setFeedURL(buildAutoUpdateFeed({ owner: "well1llb3dan2", repo: "SWTOR_Prog" }));
+  autoUpdater.checkForUpdatesAndNotify().catch(() => undefined);
   createWindow();
 
   ipcMain.handle("settings:get", () => redactSettings(settings));

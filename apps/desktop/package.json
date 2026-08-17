@@ -24,6 +24,7 @@
   "dependencies": {
     "@swtor/parser": "workspace:*",
     "@swtor/shared": "workspace:*",
+    "electron-updater": "^6.3.1",
     "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
