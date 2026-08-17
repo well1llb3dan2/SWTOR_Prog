@@ -28,6 +28,7 @@ async function loadReports(): Promise<{ reports: ReportSummary[]; error: string 
 
 export default async function ReportsPage() {
   const { reports, error } = await loadReports();
+  const meaningfulReports = reports.filter((report) => report.killCount > 0);
 
   return (
     <main className="space-y-6">
@@ -45,13 +46,13 @@ export default async function ReportsPage() {
         <p className="panel rounded-md px-4 py-3 text-sm text-red-300">{error}</p>
       ) : null}
 
-      {reports.length === 0 && error === null ? (
+      {meaningfulReports.length === 0 && error === null ? (
         <p className="panel rounded-md px-6 py-16 text-center text-sm text-[var(--color-muted)]">
           No reports yet. Stream a raid from the desktop client to create one.
         </p>
       ) : (
         <ul className="panel divide-y divide-[var(--color-line)] overflow-hidden rounded-md">
-          {reports.map((report) => (
+          {meaningfulReports.map((report) => (
             <li key={report.code}>
               <Link
                 href={`/reports/${report.code}`}

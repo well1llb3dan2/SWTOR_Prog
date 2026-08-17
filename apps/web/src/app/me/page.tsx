@@ -8,14 +8,6 @@ import { roleAccent } from "@/lib/meters";
 
 const API_URL = API_BASE_URL;
 
-interface TokenSummary {
-  id: string;
-  name: string;
-  prefix: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-}
-
 interface Character {
   playerId: string;
   name: string;
@@ -30,7 +22,6 @@ interface Me {
   isMember: boolean;
   isModerator: boolean;
   characters: Character[];
-  tokens: TokenSummary[];
 }
 
 const send = (path: string, init: RequestInit = {}) =>
@@ -44,7 +35,6 @@ function AccountPageContent() {
   const searchParams = useSearchParams();
   const [me, setMe] = useState<Me | null>(null);
   const [available, setAvailable] = useState<Character[]>([]);
-  const [freshToken, setFreshToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [usedLinkCode, setUsedLinkCode] = useState<string | null>(null);
@@ -129,7 +119,7 @@ function AccountPageContent() {
         <h1 className="text-2xl uppercase">Sign in</h1>
         <section className="panel rounded-md p-6">
           <p className="text-sm text-[var(--color-muted)]">
-            Sign in with Discord to link your characters and generate a streaming token.
+            Sign in with Discord to link your own characters after they are detected by parsing.
           </p>
           {linkCode !== null ? (
             <p className="mt-3 text-sm text-[var(--color-gold)]">
@@ -261,66 +251,6 @@ function AccountPageContent() {
         ) : null}
       </section>
 
-      <section className="panel rounded-md p-5">
-        <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-          Streaming tokens
-        </h2>
-        <p className="mt-2 text-xs text-[var(--color-muted)]">
-          Or run <code className="text-[var(--color-republic)]">/link</code> in Discord to get a
-          one-time code for the desktop app.
-        </p>
-
-        {freshToken !== null ? (
-          <div className="mt-3 rounded border border-[var(--color-gold)]/40 bg-black/40 p-3">
-            <p className="text-xs text-[var(--color-gold)]">
-              Copy this now — it is not shown again.
-            </p>
-            <code className="mt-2 block break-all text-sm">{freshToken}</code>
-          </div>
-        ) : null}
-
-        {me.tokens.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {me.tokens.map((token) => (
-              <li key={token.id} className="flex items-center gap-3 text-sm">
-                <span className="min-w-0 flex-1 truncate">
-                  {token.name}
-                  <span className="text-[var(--color-muted)]"> · {token.prefix}…</span>
-                </span>
-                <span className="shrink-0 text-xs text-[var(--color-muted)]">
-                  {token.lastUsedAt === null
-                    ? "never used"
-                    : new Date(token.lastUsedAt).toLocaleDateString("en-GB")}
-                </span>
-                <button
-                  onClick={async () => {
-                    await send(`/api/me/tokens/${token.id}`, { method: "DELETE" });
-                    setFreshToken(null);
-                    await refresh();
-                  }}
-                  className="shrink-0 text-xs uppercase tracking-[0.1em] text-[var(--color-muted)] hover:text-red-300"
-                >
-                  Revoke
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-
-        <button
-          onClick={async () => {
-            const response = await send("/api/me/tokens", {
-              method: "POST",
-              body: JSON.stringify({ name: "Desktop" }),
-            });
-            if (response.ok) setFreshToken(((await response.json()) as { token: string }).token);
-            await refresh();
-          }}
-          className="mt-4 rounded border border-[var(--color-gold)] px-4 py-2 text-xs uppercase tracking-[0.12em] text-[var(--color-gold)] transition hover:bg-[var(--color-gold)]/10"
-        >
-          Generate token
-        </button>
-      </section>
     </main>
   );
 }
