@@ -870,3 +870,106 @@ PHASE 5: Deep Progression Analytics & Forensics
 * Construct historical progression graphs (wipe progression curves, execution percentiles, damage spikes prior to wipes).
 * Build the fail-point forensic view aggregating last-second damage taken, unmitigated damage spikes, and missed cleanses.
 * Conduct load testing with simulated simultaneous 16-man parses streaming to the ingestion API under full database load. Run end-to-end user acceptance tests with guild officers.
+
+---
+
+# 7. Deployment, Hosting & Release Operations
+
+## 7.1 Runtime Environment Strategy
+
+The production delivery model is split across three layers:
+
+1. Web portal hosting for the Next.js experience, including the member-facing dashboard and officer surfaces.
+2. API hosting for ingestion, report retrieval, session state, and authentication endpoints.
+3. Desktop packaging for the Windows client, released as an NSIS installer for guild deployment.
+
+Recommended hosting targets for launch:
+
+- Web portal: Render, Vercel, or a managed Node environment with HTTPS and custom domain support.
+- API: Render or Azure Container Apps with PostgreSQL and Redis backing services.
+- Desktop: GitHub Releases plus an installer artifact for manual distribution.
+
+## 7.2 Release Flow
+
+The release flow for each milestone should be predictable and repeatable:
+
+1. Run the full monorepo build and web build locally.
+2. Bump versions in the workspace package manifests.
+3. Commit the release with a conventional changelog style message.
+4. Push to the default branch.
+5. Publish the desktop installer to GitHub Releases using the configured release pipeline.
+6. Announce the release in the guild communications channel with a short summary and upgrade note.
+
+## 7.3 Production Readiness Checklist
+
+- Verify the web portal renders correctly on desktop and mobile widths.
+- Confirm the mobile menu and PWA install/update flow behave as expected.
+- Verify the service worker updates on deployment without trapping the user in a stale shell.
+- Confirm the API and portal share the same expected environment variables for the target deployment.
+- Ensure the desktop release artifact contains the newest client build and startup path.
+- Validate the release tag and installer naming scheme before public distribution.
+
+---
+
+# 8. Security, Access Control & Guild Governance
+
+## 8.1 Role-Based Access Model
+
+Access should be role-aware from the first release:
+
+- Members can view their own character profile, signups, and public guild information.
+- Raiders can access progression and report surfaces relevant to their own parse history.
+- Officers can manage roster planning, operation scheduling, and moderation-related workflows.
+- Administrators can adjust bot configuration, moderation policies, and system-wide settings.
+
+## 8.2 Discord and Auth Integration
+
+Discord authentication should be the primary onboarding flow. The web portal should bind the signed-in user to their Discord identity and then link that account to a verified SWTOR character profile. This creates a single identity source for scheduling, parsing, achievements, and officer workflows.
+
+## 8.3 Moderation & Operational Guardrails
+
+Moderation surfaces should remain restricted to authorized officers and administrators. The portal should prevent non-moderators from viewing or altering moderation actions, and should log sensitive changes for auditability.
+
+---
+
+# 9. MVP Feature Completion Checklist
+
+The following features define the planned minimum viable release experience:
+
+- Landing portal with lore-faithful visual identity and thematic navigation.
+- Responsive navigation with a mobile menu and desktop-first operations layout.
+- Live session visibility and operations status surfaces.
+- Progression summary pages for encounters and reported clears/wipes.
+- Achievement and badge overview with earned and upcoming milestones.
+- Calendar and RSVP planning surface for raid scheduling.
+- Report archive and detailed encounter/fight views.
+- PWA installation and automatic update support for the web portal.
+- Desktop installer build and publication path for Windows.
+
+## 9.1 Current MVP Delivery Status
+
+The current implementation covers the portal shell, responsive navigation, PWA support, and the core operations/progression/reporting surfaces. The remaining work is mainly around deepening the data integrations, hardening the live session experience, and expanding officer workflows for scheduling and moderation.
+
+---
+
+# 10. Release 0.1.5 Summary & Forward Plan
+
+Release 0.1.5 should be treated as a stabilization and polish milestone. The focus is not only feature expansion, but also making the experience reliable, navigable, and deployable.
+
+## 10.1 Included Focus Areas
+
+- Remove placeholder and demo-style content from the portal.
+- Add a responsive menu for smaller screens.
+- Make the web portal installable as a PWA with update-on-deploy behavior.
+- Ensure core routes gracefully handle API failures and missing data.
+- Package and publish a desktop installer for the Windows client.
+
+## 10.2 Next Priorities
+
+After 0.1.5, the next milestones should focus on:
+
+- deeper roster-builder workflows and officer scheduling flows,
+- richer character profile linking and dashboard personalization,
+- improved live telemetry and session detail views,
+- moderation tooling and audit visibility,
+- expanded analytics and progression forensics.
