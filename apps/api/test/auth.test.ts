@@ -240,6 +240,35 @@ describe("sign-in", () => {
     expect(location.searchParams.get("discordId")).toBe("424242");
   });
 
+  it("returns the signed-in user's live sessions for watching", async () => {
+    const cookie = await signIn();
+    const session = new IngestSession({
+      sessionId: "watch-list-session",
+      guildId: config.defaultGuildId,
+      reportCode: "live-report",
+      logFileName: "live.log",
+      ownerUserId: "424242",
+      onPullEnd: () => undefined,
+    });
+    server.sessions.add(session);
+
+    try {
+      const response = await server.app.inject({
+        method: "GET",
+        url: "/api/me/stream/status",
+        headers: { cookie },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        active: true,
+        sessions: [expect.objectContaining({ sessionId: "watch-list-session", reportCode: "live-report" })],
+      });
+    } finally {
+      server.sessions.remove("watch-list-session");
+    }
+  });
+
   it("reports nobody when there is no session", async () => {
     const me = await server.app.inject({ method: "GET", url: "/api/me" });
     expect(me.json()).toEqual({ user: null });

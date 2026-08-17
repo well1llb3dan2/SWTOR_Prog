@@ -12,7 +12,7 @@ export interface DesktopSettings {
 
 export function defaultSettings(): DesktopSettings {
   return {
-    serverUrl: "http://localhost:3001",
+    serverUrl: "https://swtor-api.onrender.com",
     token: "",
     logDirectory: defaultLogDirectory(),
     autoStart: false,

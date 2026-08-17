@@ -220,6 +220,13 @@ app.whenReady().then(async () => {
   ipcMain.handle("stream:start-replay", (_event, filePath: string, speed: number) =>
     startReplay(filePath, speed),
   );
+  ipcMain.handle("auth:signout", async () => {
+    settings = { ...settings, token: "" };
+    await saveSettings(settingsPath(app.getPath("userData")), settings);
+    teardown();
+    publish({ mode: "idle", connection: "idle", replayProgress: null });
+    return { ok: true };
+  });
   ipcMain.handle("auth:discord", async () => {
     const authUrl = new URL(`${settings.serverUrl}/auth/discord`);
     authUrl.searchParams.set("desktop", "1");

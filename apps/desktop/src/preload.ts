@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("desktop", {
   pickLogDirectory: () => ipcRenderer.invoke("dialog:log-directory"),
   pickReplayFile: () => ipcRenderer.invoke("dialog:replay-file"),
   loginWithDiscord: () => ipcRenderer.invoke("auth:discord"),
+  signOutDiscord: () => ipcRenderer.invoke("auth:signout"),
   checkApiHealth: () => ipcRenderer.invoke("api:health"),
   listReports: (limit: number) => ipcRenderer.invoke("api:reports", limit),
   startLive: () => ipcRenderer.invoke("stream:start-live"),

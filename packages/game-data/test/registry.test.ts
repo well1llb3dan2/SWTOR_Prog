@@ -19,6 +19,13 @@ describe("registry integrity", () => {
     }
   });
 
+  it("registers the flashpoint encounter catalog from the planning brief", () => {
+    expect(ENCOUNTERS_BY_ID.get("fp_athiss_prophet_vodal")).toBeDefined();
+    expect(ENCOUNTERS_BY_ID.get("fp_li_doctor_lorrick")).toBeDefined();
+    expect(ENCOUNTERS_BY_ID.get("fp_fe_darth_malgus")).toBeDefined();
+    expect(ENCOUNTERS_BY_ID.get("fp_manaan_ortuno")).toBeDefined();
+  });
+
   it("lowercases every boss name so log matching is case-insensitive", () => {
     for (const encounter of ENCOUNTERS) {
       for (const name of [...encounter.bossNames, ...encounter.victoryRequires]) {
@@ -42,11 +49,52 @@ describe("registry integrity", () => {
     }
   });
 
-  it("offers Master Mode only where the live client still has one", () => {
+  it("offers Master Mode for both classic raids and the new flashpoint catalog", () => {
     const master = new Set(
       OPERATIONS.filter((o) => o.difficulties.includes("Master")).map((o) => o.id),
     );
-    expect(master).toEqual(new Set(["ec", "tfb", "snv", "df", "dp", "gotm", "dxun"]));
+    expect(master).toEqual(
+      new Set([
+        "ec",
+        "tfb",
+        "snv",
+        "df",
+        "dp",
+        "gotm",
+        "dxun",
+        "fp_ess",
+        "fp_bt",
+        "fp_hs",
+        "fp_athiss",
+        "fp_mr",
+        "fp_cad",
+        "fp_tv",
+        "fp_bp",
+        "fp_mp",
+        "fp_foundry",
+        "fp_d7",
+        "fp_boi",
+        "fp_fe",
+        "fp_li",
+        "fp_kaon",
+        "fp_czlabs",
+        "fp_czcore",
+        "fp_aot",
+        "fp_ki",
+        "fp_manaan",
+        "fp_rakata",
+        "fp_bh",
+        "fp_rishi",
+        "fp_umbara",
+        "fp_copero",
+        "fp_nathema",
+        "fp_meridian",
+        "fp_sov",
+        "fp_sote",
+        "fp_nul",
+        "fp_sos",
+      ]),
+    );
   });
 
   it("keeps R-4 Anomaly eight-player only", () => {

@@ -9,11 +9,17 @@ const API_URL = API_BASE_URL;
 
 export default function HomePage() {
   const router = useRouter();
-  const [sessionId, setSessionId] = useState("");
   const [streamStatus, setStreamStatus] = useState<{
     active: boolean;
-    sessionId?: string;
-    reportCode?: string;
+    sessionId?: string | null;
+    reportCode?: string | null;
+    sessions?: Array<{
+      sessionId: string;
+      reportCode?: string | null;
+      logFileName?: string | null;
+      eventsReceived?: number;
+      lastSeenAt?: number;
+    }>;
   } | null>(null);
 
   useEffect(() => {
@@ -21,7 +27,18 @@ export default function HomePage() {
       try {
         const response = await fetch(`${API_URL}/api/me/stream/status`, { credentials: "include" });
         if (!response.ok) return;
-        const body = (await response.json()) as { active: boolean; sessionId?: string; reportCode?: string };
+        const body = (await response.json()) as {
+          active: boolean;
+          sessionId?: string | null;
+          reportCode?: string | null;
+          sessions?: Array<{
+            sessionId: string;
+            reportCode?: string | null;
+            logFileName?: string | null;
+            eventsReceived?: number;
+            lastSeenAt?: number;
+          }>;
+        };
         setStreamStatus(body);
       } catch {
         setStreamStatus(null);
@@ -42,7 +59,7 @@ export default function HomePage() {
         <p className="text-xs uppercase tracking-[0.3em] text-[var(--color-gold)]">Infamous</p>
         <h1 className="mt-2 text-3xl uppercase">Combat Analytics</h1>
         <p className="mt-2 max-w-xl text-sm text-[var(--color-muted)]">
-          Start the desktop streamer, then paste its session id below to watch the raid live.
+          Start the desktop streamer and choose the live session below to watch the raid live.
         </p>
       </header>
 
@@ -62,29 +79,34 @@ export default function HomePage() {
 
       <section className="panel rounded-md p-6">
         <h2 className="text-xs uppercase tracking-[0.2em] text-[var(--color-muted)]">
-          Watch a live session
+          Watch your live session
         </h2>
-        <form
-          className="mt-4 flex flex-col gap-3 sm:flex-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const trimmed = sessionId.trim();
-            if (trimmed.length > 0) router.push(`/live/${encodeURIComponent(trimmed)}`);
-          }}
-        >
-          <input
-            value={sessionId}
-            onChange={(event) => setSessionId(event.target.value)}
-            placeholder="Session id from the desktop client"
-            className="flex-1 rounded border border-[var(--color-line)] bg-black/40 px-3 py-2 text-sm outline-none focus:border-[var(--color-republic)]"
-          />
-          <button
-            type="submit"
-            className="rounded border border-[var(--color-gold)] px-5 py-2 text-xs uppercase tracking-[0.15em] text-[var(--color-gold)] transition hover:bg-[var(--color-gold)]/10"
-          >
-            Watch
-          </button>
-        </form>
+        {streamStatus?.active && (streamStatus.sessions?.length ?? 0) > 0 ? (
+          <div className="mt-4 space-y-2">
+            {streamStatus.sessions?.map((session) => (
+              <button
+                key={session.sessionId}
+                type="button"
+                onClick={() => router.push(`/live/${encodeURIComponent(session.sessionId)}`)}
+                className="flex w-full items-center justify-between rounded border border-[var(--color-line)] bg-black/40 px-4 py-3 text-left text-sm transition hover:border-[var(--color-republic)]"
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-[var(--color-ink)]">{session.sessionId}</span>
+                  <span className="mt-1 block truncate text-xs text-[var(--color-muted)]">
+                    {session.reportCode ?? "Live report pending"}
+                  </span>
+                </span>
+                <span className="ml-3 text-xs uppercase tracking-[0.15em] text-[var(--color-gold)]">
+                  Watch
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--color-muted)]">
+            Your desktop streamer is not currently connected to the portal.
+          </p>
+        )}
       </section>
 
       <section className="panel rounded-md p-6">

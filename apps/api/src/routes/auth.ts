@@ -234,18 +234,24 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     if (user === null) return reply;
 
     const active = sessions.findByOwnerUserId(user.discordId);
-    const current = active[0];
-    if (current === undefined) {
-      return { active: false };
+    if (active.length === 0) {
+      return { active: false, sessions: [] };
     }
 
     return {
       active: true,
-      sessionId: current.sessionId,
-      reportCode: current.reportCode,
-      logFileName: current.logFileName,
-      eventsReceived: current.eventsReceived,
-      lastSeenAt: current.lastSeenAt,
+      sessionId: active[0]?.sessionId ?? null,
+      sessions: active.map((session) => ({
+        sessionId: session.sessionId,
+        reportCode: session.reportCode,
+        logFileName: session.logFileName,
+        eventsReceived: session.eventsReceived,
+        lastSeenAt: session.lastSeenAt,
+      })),
+      reportCode: active[0]?.reportCode ?? null,
+      logFileName: active[0]?.logFileName ?? null,
+      eventsReceived: active[0]?.eventsReceived ?? 0,
+      lastSeenAt: active[0]?.lastSeenAt ?? null,
     };
   });
 

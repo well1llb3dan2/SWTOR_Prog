@@ -1136,6 +1136,922 @@ const LAIR = operation("lair", [
   },
 ]);
 
+const FLASHPOINTS = [
+  operation("fp_ess", [
+    {
+      id: "fp_ess_lieutenant_isric",
+      name: "Lieutenant Isric",
+      bossNames: ["lieutenant isric"],
+      adds: ["imperial boarding commando"],
+      phases: [p(1, "Airlock Breach", "Single-Target Ground", "Encounter pull")],
+      wipeMechanics: [
+        {
+          name: "Focused Concussion Volley",
+          description: "Unmitigated Full Auto channels on non-tanks cause lethal burst damage.",
+        },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_ess_ironfist",
+      name: "Ironfist",
+      bossNames: ["ironfist"],
+      adds: ["imperial boarding marine"],
+      phases: [p(1, "Hangar Defense", "Ranged Cleave & Cover Advance", "Encounter pull")],
+      wipeMechanics: [
+        {
+          name: "Headshot Execution",
+          description: "Failing to hide behind pillars during Headshot casts is instant death.",
+        },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_ess_iss799",
+      name: "ISS-799 Heavy Droid",
+      bossNames: ["iss-799 heavy droid"],
+      adds: ["security maintenance drone"],
+      phases: [p(1, "Engine Bay Core", "Frontal Cleave & Knockback", "Encounter pull")],
+      wipeMechanics: [
+        {
+          name: "Concussive Pulse Punt",
+          description: "Standing behind the tank during the knockback sends players off the catwalk.",
+        },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_ess_vokk",
+      name: "Vokk",
+      bossNames: ["vokk"],
+      adds: [],
+      phases: [p(1, "Bridge Showdown", "Ground AoE Avoidance", "Encounter pull")],
+      wipeMechanics: [
+        {
+          name: "Lightning Whirlwind Trap",
+          description: "Standing in the purple lightning circles stacks lethal electrical damage.",
+        },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_bt", [
+    {
+      id: "fp_bt_gxr5",
+      name: "GXR-5 Sabotage Droid",
+      bossNames: ["gxr-5 sabotage droid"],
+      adds: [],
+      phases: [p(1, "Engine Deck Burn", "Frontal Flamethrower Management", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Flamethrower Sweep", description: "Unmitigated conal fire sweeps kill non-tanks." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_bt_borga",
+      name: "Borga the Enforcer",
+      bossNames: ["borga the enforcer", "borga"],
+      adds: ["mercenary guard"],
+      phases: [p(1, "Cargo Hold Defense", "Melee Cleave & Adds", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Crushing Cleave", description: "High physical cleave hits non-tanks if the boss is turned inward." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_bt_commander_ghon",
+      name: "Commander Ghon",
+      bossNames: ["commander ghon"],
+      adds: ["republic defense soldier"],
+      phases: [p(1, "Bridge Annex Assault", "Interrupt & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Concussion Grenade Stun", description: "A long stun on the tank leaves healers exposed." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_bt_yadira_ban",
+      name: "Yadira Ban",
+      bossNames: ["yadira ban"],
+      adds: [],
+      phases: [p(1, "Force Leap & Cyclone Nova", "Pull & Expand Avoidance", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Cyclone Nova Blast", description: "Remaining in the white circle at the end of the cast is fatal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_hs", [
+    {
+      id: "fp_hs_dn314_tunneler",
+      name: "DN-314 Tunneler",
+      bossNames: ["dn-314 tunneler"],
+      adds: ["demolition probe droid"],
+      phases: [p(1, "Mining Laser & Probes", "Laser Sweeps & Add Bursts", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Mining Laser Incineration", description: "Standing in front of the beam rapidly kills non-tanks." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_hs_vorgan_the_volcano",
+      name: "Vorgan the Volcano",
+      bossNames: ["vorgan the volcano"],
+      adds: ["vorgan's war beast"],
+      phases: [p(1, "War Hound Off-Tanking & Grenades", "Add Focus & Ground Fire", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Incendiary Puddle Stacking", description: "Overlapping fire patches under healers become lethal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_hs_battlelord_kreshan",
+      name: "Battlelord Kreshan",
+      bossNames: ["battlelord kreshan"],
+      adds: ["station combat engineer"],
+      phases: [p(1, "Bridge Suppression", "Cleave & Engineer Waves", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Thermal Grenade Detonation", description: "Grouping up while carrying red circles causes lethal overlap." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_athiss", [
+    {
+      id: "fp_athiss_professor_leysok",
+      name: "Professor Ley'sok",
+      bossNames: ["professor ley'sok"],
+      adds: ["corrupted droid"],
+      phases: [p(1, "Excavation Site Ambush", "Ranged Burn & Droid Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Full Auto Volley", description: "High channeled single-target damage against non-tanks is lethal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_athiss_beast_vodal_kressh",
+      name: "Beast of Vodal Kressh",
+      bossNames: ["beast of vodal kressh"],
+      adds: ["tomb lurkerling"],
+      phases: [p(1, "Ancient Tomb Cleave", "Kiting & Add Priority", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Trampling Stomp", description: "Failing to kite during enrage results in massive melee damage." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_athiss_prophet_vodal",
+      name: "The Prophet of Vodal",
+      bossNames: ["the prophet of vodal"],
+      adds: ["corrupted cultist", "flame sphere"],
+      phases: [p(1, "Dark Ritual & Flame Spheres", "Kiting & Ground Fire", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Fiery Doom Explosion", description: "Uncleansed Fiery Doom detonates after 10 seconds and wipes the party." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_mr", [
+    {
+      id: "fp_mr_brax",
+      name: "Brax the Untamed",
+      bossNames: ["brax the untamed"],
+      adds: ["corrupted war hound"],
+      phases: [p(1, "Beast Focus & Tank Swap", "Hound Priority", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Packmaster Bloodrage", description: "Leaving hounds alive past 60 seconds grants a lethal attack-speed buff." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_mr_boarding_party_trio",
+      name: "Mandalorian Squad",
+      bossNames: ["chandra", "korg", "kurk"],
+      victoryRequires: ["chandra", "korg", "kurk"],
+      adds: ["mandalorian vanguard"],
+      phases: [p(1, "Three-Target Kill Order", "Crowd Control & Focus", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Coordinated Crossfire", description: "Leaving all three bosses active without crowd control overwhelms healing." },
+      ],
+      victoryEvent: "Squad defeated",
+    },
+    {
+      id: "fp_mr_mavrix_var",
+      name: "Mavrix Var",
+      bossNames: ["mavrix var"],
+      adds: ["automated defense cannon"],
+      phases: [p(1, "Catwalk Jetpack Leaps", "Platform Swapping", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Automated Defense Crossfire", description: "Failing to kill catwalk turrets quickly pins the party in lethal crossfire." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_cad", [
+    {
+      id: "fp_cad_officer_xander",
+      name: "Officer Xander & Guard Droid",
+      bossNames: ["officer xander", "enforcer droid"],
+      victoryRequires: ["officer xander", "enforcer droid"],
+      adds: ["cademimu patrol enforcer"],
+      phases: [p(1, "Dual Synergy", "Shield Sharing & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Overcharge Laser Grid", description: "Allowing the droid to reach full energy stacks triggers a lethal sweep." },
+      ],
+      victoryEvent: "Both defeated",
+    },
+    {
+      id: "fp_cad_captain_grimlyk",
+      name: "Captain Grimlyk",
+      bossNames: ["captain grimlyk"],
+      adds: ["cademimu heavy mercenary"],
+      phases: [p(1, "Slum Barricade", "Add Waves & Frontal Fire", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Flamethrower Cleave", description: "Unmitigated conal flamethrowers kill non-tank players rapidly." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_cad_general_ortol",
+      name: "General Ortol",
+      bossNames: ["general ortol"],
+      adds: [],
+      phases: [p(1, "Missile Thruster Ignition", "Quadrant Hazard Management", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Rocket Silo Exhaust Incineration", description: "Standing on active exhaust grates during ignition is fatal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_tv", [
+    {
+      id: "fp_tv_handler_gorshaa",
+      name: "Handler Gorshaa",
+      bossNames: ["handler gorshaa"],
+      adds: ["imperial attack hound"],
+      phases: [p(1, "Jungle Gate Encounter", "Beast Priority & Snare Cleansing", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Hound Frenzy Bleed", description: "Stacking bleed from hounds overwhelms healers." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_tv_lord_hasper",
+      name: "Lord Hasper",
+      bossNames: ["lord hasper"],
+      adds: [],
+      phases: [p(1, "Temple Steps Duel", "Lightning Ground AoE Avoidance", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Force Lightning Tempest", description: "Uninterrupted lightning storm deals heavy party-wide damage." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_tv_general_edikar",
+      name: "General Edikar",
+      bossNames: ["general edikar"],
+      adds: ["fortress defense turret", "security reinforcement"],
+      phases: [p(1, "Command Bunker", "Turret Clearing & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Artillery Crossfire", description: "Ignoring turrets lets them focus-fire party members down one by one." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_bp", [
+    {
+      id: "fp_bp_major_alven",
+      name: "Major Alven",
+      bossNames: ["major alven"],
+      adds: ["republic security droid"],
+      phases: [p(1, "Deck Corridor Firefight", "Add Waves & Ranged Interrupts", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Explosive Shot Burst", description: "Unmitigated high single-target burst against non-tanks is lethal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_bp_commander_jorland",
+      name: "Commander Jorland",
+      bossNames: ["commander jorland", "chief engineer kels", "medic silar"],
+      victoryRequires: ["commander jorland", "chief engineer kels", "medic silar"],
+      adds: ["security combat probe"],
+      phases: [p(1, "Focus Kill Order", "Target Priority", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Orbital Strike Saturation", description: "Standing in overlapping zones causes instant death." },
+      ],
+      victoryEvent: "All 3 officers defeated",
+    },
+  ]),
+  operation("fp_mp", [
+    {
+      id: "fp_mp_colonel_daksh",
+      name: "Colonel Daksh",
+      bossNames: ["colonel daksh"],
+      adds: ["prison security droid"],
+      phases: [p(1, "Cybernetic Eye Overdrive", "Kite Behind Pillars", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Cybernetic Laser Beam", description: "Remaining in line of sight during the laser eye phase is instant death." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_mp_grand_moff_kilran",
+      name: "Grand Moff Kilran",
+      bossNames: ["grand moff kilran"],
+      adds: ["imperial sniper guard", "heavy security droid"],
+      phases: [p(1, "Catwalk Trench Advance", "Cover-to-Cover Advance", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Aimed Snipe One-Shot", description: "Moving in the open while targeted with red laser sight is lethal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_foundry", [
+    {
+      id: "fp_foundry_hk47",
+      name: "HK-47",
+      bossNames: ["hk-47"],
+      adds: ["foundry defense droid", "core shield generator"],
+      phases: [p(1, "Direct Fire & Snipe", "Turret & Tanking", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Assassination Protocol Snipe", description: "Unmitigated channeled sniper attacks during stealth are instant execution." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_foundry_revan",
+      name: "Revan",
+      bossNames: ["revan"],
+      adds: [],
+      phases: [p(1, "Force Mastery & Push", "Dual Saber Combat", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Asteroid Impact Crash", description: "Failing to move from asteroid targeting zones causes crushing death." },
+      ],
+      victoryEvent: "Revan teleports / vanquished",
+    },
+  ]),
+  operation("fp_d7", [
+    {
+      id: "fp_d7_bulwark",
+      name: "Bulwark",
+      bossNames: ["bulwark"],
+      adds: ["bulwark repair droid"],
+      phases: [p(1, "Defense Shield Cycles", "Console Slicing & Shield Break", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Energy Shield Shockwave", description: "Attacking Bulwark during the shield reflection phase wipes DPS players." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_d7_mentor",
+      name: "Mentor",
+      bossNames: ["mentor"],
+      adds: ["core defense claw", "assassination droid"],
+      phases: [p(1, "Power Core Slicing", "Console Interaction & Claws", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Core Cleansing Laser Sweep", description: "Sweeping room lasers instantly vaporise anyone caught in their path." },
+      ],
+      victoryEvent: "Mentor core destroyed",
+    },
+  ]),
+  operation("fp_boi", [
+    {
+      id: "fp_boi_gark",
+      name: "Gark the Indomitable",
+      bossNames: ["gark the indomitable"],
+      adds: ["gamorrean honor guard"],
+      phases: [p(1, "Trench Line Defense", "Add Cleave & Frontal Smash", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Enraged Overhead Smash", description: "High physical cleave hits non-tanks if the boss turns toward the group." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_boi_darth_serevin",
+      name: "Darth Serevin & Commander Krel",
+      bossNames: ["darth serevin", "commander krel"],
+      victoryRequires: ["darth serevin", "commander krel"],
+      adds: ["ilum crystal formation"],
+      phases: [p(1, "Dual Engagement", "Stealth & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Crystal Storm Explosion", description: "The crystal throw must be interrupted to prevent lethal party damage." },
+      ],
+      victoryEvent: "Both defeated",
+    },
+  ]),
+  operation("fp_fe", [
+    {
+      id: "fp_fe_tregg",
+      name: "Tregg the Destroyer",
+      bossNames: ["tregg the destroyer"],
+      adds: ["trandoshan hunter"],
+      phases: [p(1, "Hangar Platform Cleave", "Pounce & Add Wave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Frenzied Axe Sweep", description: "Unmitigated 360-degree axe spins tear through melee players." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_fe_jindo_kress",
+      name: "Jindo Kress",
+      bossNames: ["jindo kress"],
+      adds: ["ship console turret"],
+      phases: [p(1, "Ship Suppression & Console Interaction", "Starship Missile Defense", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Starship Missile Barrage", description: "Failing to fire the anti-aircraft console lets the ship bomb the party." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_fe_darth_malgus",
+      name: "Darth Malgus",
+      bossNames: ["darth malgus"],
+      adds: [],
+      phases: [p(1, "Throne Room Duel", "Choke & Force Leap", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Unlimited Power Channeled Wipe", description: "Failing to knock Malgus into the chasm during the sub-10% channel wipes the party." },
+      ],
+      victoryEvent: "Malgus defeated / chasm fall",
+    },
+  ]),
+  operation("fp_li", [
+    {
+      id: "fp_li_putrid_shaclaw",
+      name: "Putrid Shaclaw",
+      bossNames: ["putrid shaclaw"],
+      adds: ["shaclaw broodling"],
+      phases: [p(1, "Island Cave Cleave", "Acid Pools & Swarms", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Caustic Puddle Overlap", description: "Standing in acid pools reduces armor and rapidly ticks down health." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_li_lr5_sentinel",
+      name: "LR-5 Sentinel Droid",
+      bossNames: ["lr-5 sentinel droid"],
+      adds: ["plasma sphere anomaly"],
+      phases: [p(1, "Incinerate Interrupts & Plasma Orbs", "Strict Interrupt Rotation", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Incinerate Cast Completion", description: "A single uninterrupted Incinerate cast kills players in two seconds." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_li_sav_rak",
+      name: "Project Sav-Rak",
+      bossNames: ["project sav-rak"],
+      adds: [],
+      phases: [p(1, "Platform Pipe Leap", "Platform Swapping & Pipe Slicing", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Acid Volley Channeled Overload", description: "Failing to click all three pipe release terminals allows lethal acid barrage." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_li_doctor_lorrick",
+      name: "Doctor Lorrick",
+      bossNames: ["doctor lorrick"],
+      adds: ["mutated kolto experiment", "rakghoul ravager"],
+      phases: [p(1, "Lab Chemical Toss & Vats", "Kiting & Satchel Bombs", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Corrosive Acid Saturation", description: "Leaving toxic beaker pools overlapping the center wipes the group." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_kaon", [
+    {
+      id: "fp_kaon_rakghoul_behemoth",
+      name: "Rakghoul Behemoth",
+      bossNames: ["rakghoul behemoth"],
+      adds: ["infected citizen", "explosive flare barrel"],
+      phases: [p(1, "Armor Flare Burning", "Kiting to Flare Barrels", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Unmitigated Behemoth Slam", description: "Failing to break his armor with flares causes a hard enrage." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_kaon_kr824",
+      name: "KR-824 Military Droid",
+      bossNames: ["kr-824 military droid"],
+      adds: ["kaon security drone"],
+      phases: [p(1, "City Square Defense", "Suppression Fire & Shields", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Suppression Mortar Direct Hit", description: "Direct mortar impact deals lethal kinetic burst damage." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_kaon_commander_lox",
+      name: "Commander Lox",
+      bossNames: ["commander lox"],
+      adds: ["infected mercenary"],
+      phases: [p(1, "Rooftop Last Stand", "Add Control & Ranged Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Aimed Concussion Shot", description: "High-powered sniper fire without defensives is lethal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_czlabs", [
+    {
+      id: "fp_czlabs_cz8x",
+      name: "CZ-8X Eradicator Droid",
+      bossNames: ["cz-8x eradicator droid"],
+      adds: ["lab security sentry"],
+      phases: [p(1, "Hangar Platform Laser", "Laser Sweeps & Droid Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Thermal Laser Cleave", description: "Unmitigated 180-degree laser sweeps burn through party health." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_czlabs_rasmus_blys",
+      name: "Rasmus Blys",
+      bossNames: ["rasmus blys"],
+      adds: ["mutated kolto experiment", "containment pod"],
+      phases: [p(1, "Pod Venting & Serum Cleansing", "Kiting & Pod Slicing", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Toxic Bacta Flood", description: "Failing to vent active tanks floods the lab with lethal poison." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_czcore", [
+    {
+      id: "fp_czcore_duneclaw",
+      name: "Enhanced Duneclaw",
+      bossNames: ["enhanced duneclaw"],
+      adds: ["czerka lab hound"],
+      phases: [p(1, "Bio-Dome Sandbox", "Ground Smash & Cleaves", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Sandstorm Ground Pound", description: "Massive full-room knockbacks punt players into hazard fields." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_czcore_the_vigilant",
+      name: "The Vigilant",
+      bossNames: ["the vigilant"],
+      adds: ["security maintenance drone"],
+      phases: [p(1, "Generator Coolant Floor Slices", "Coolant Platform Puzzle", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Plasma Vent Incineration", description: "Red overheated plates during venting cause immediate party incineration." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_aot", [
+    {
+      id: "fp_aot_dentiri_travik",
+      name: "Master Liam Dentiri / Major Travik",
+      bossNames: ["master liam dentiri", "major travik"],
+      victoryRequires: ["master liam dentiri", "major travik"],
+      adds: ["temple defender"],
+      phases: [p(1, "Temple Sanctum Duel", "Holocron Buff Management", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Force Cascade Detonation", description: "Failing to break holocron shielding channels causes lethal temple-wide Force explosions." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_ki", [
+    {
+      id: "fp_ki_soverus_jens",
+      name: "Darth Soverus / Commander Jens",
+      bossNames: ["darth soverus", "commander jens"],
+      victoryRequires: ["darth soverus", "commander jens"],
+      adds: ["sith academy acolyte"],
+      phases: [p(1, "Academy Steps Bombardment", "Lightning Cages & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Lightning Cage Shock", description: "Touching the lightning cage perimeter causes chain electrocution to allies." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_manaan", [
+    {
+      id: "fp_manaan_m3o7",
+      name: "Sentry Droid M3-O7",
+      bossNames: ["sentry droid m3-o7"],
+      adds: ["laboratory security sentry"],
+      phases: [p(1, "Research Platform Defense", "Mine Drops & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Plasma Mine Chain Detonation", description: "Detonating multiple plasma mines at once wipes the party." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_manaan_ortuno",
+      name: "Ortuno",
+      bossNames: ["ortuno"],
+      adds: ["manaan research defense drone"],
+      phases: [p(1, "Submerged Deck & Lightning Calling", "Puddle Electrification Navigation", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Electric Water Surge", description: "Standing in active water puddles during the lightning channel is fatal." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_manaan_stivastin",
+      name: "Stivastin",
+      bossNames: ["stivastin"],
+      adds: ["ceiling fire pipe valve"],
+      phases: [p(1, "Fire Pipe Kiting", "Shield Removal Hazard Puzzle", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Invulnerability Overdrive Slam", description: "Failing to strip his shield via overhead fire dumps leads to an enrage one-shot stomp." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_rakata", [
+    {
+      id: "fp_rakata_arkous_goh",
+      name: "Darth Arkous & Lord Goh",
+      bossNames: ["darth arkous", "lord goh"],
+      victoryRequires: ["darth arkous", "lord goh"],
+      adds: ["revanite temple infiltrator"],
+      phases: [p(1, "Twin Sith / Republic Engagement", "Dual Boss Tank Separation", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Resonance Dark Storm", description: "Tanking both bosses inside 15 meters empowers their lightning casts into a group wipe." },
+      ],
+      victoryEvent: "Both bosses defeated",
+    },
+  ]),
+  operation("fp_bh", [
+    {
+      id: "fp_bh_kyramla_gemas",
+      name: "Kyramla Gemas",
+      bossNames: ["kyramla gemas"],
+      adds: ["jungle stalker beast"],
+      phases: [p(1, "Arena Jungle Pit", "Kiting & Toxic Spore Clouds", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Spore Gas Suffocation", description: "Standing in toxic clouds applies a high-damage poison debuff that overwhelms healers." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_bh_jos_and_valk",
+      name: "Jos & Valk Beroya",
+      bossNames: ["jos", "valk beroya"],
+      victoryRequires: ["jos", "valk beroya"],
+      adds: ["mandalorian war hound"],
+      phases: [p(1, "Jos Ground Combat / Valk Balcony Sniping", "Shield Swapping", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Couple Enrage Fury", description: "Defeating one spouse while the other remains at high HP enrage-wipes the party." },
+      ],
+      victoryEvent: "Both bosses defeated",
+    },
+    {
+      id: "fp_bh_shae_vizla",
+      name: "Shae Vizla",
+      bossNames: ["shae vizla"],
+      adds: ["mandalorian torchbearer", "mandalorian tracker"],
+      phases: [p(1, "Flame Sweep & Jetpack Barrage", "Kiting & Ground Fire", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Conflagration Carpet Bomb", description: "Overlapping rocket reticles during flight phases result in instant party incineration." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_rishi", [
+    {
+      id: "fp_rishi_rear_admiral_shai",
+      name: "Rear Admiral Shai / Commander Ran Kramos",
+      bossNames: ["rear admiral shai", "commander ran kramos"],
+      victoryRequires: ["rear admiral shai", "commander ran kramos"],
+      adds: ["revanite heavy gunner", "shield recon drone"],
+      phases: [p(1, "Beachhead Artillery Suppression", "Shield Droid Interception", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Orbital Mortar Carpet Bomb", description: "Stacking overlapping mortar circles causes immediate group death." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_umbara", [
+    {
+      id: "fp_umbara_slythe_stalker",
+      name: "Slythe Stalker",
+      bossNames: ["slythe stalker"],
+      adds: ["umbaran shadow beast"],
+      phases: [p(1, "Shadow Pounce & Acid Spit", "Stealth Tracking & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Shadow Acid Saturation", description: "Failing to break stealth leaves players pinned under fatal acid bleeds." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_umbara_technician_vance",
+      name: "Technician Vance",
+      bossNames: ["technician vance"],
+      adds: ["umbaran tech-stalker", "automated rail turret"],
+      phases: [p(1, "Train Car Movement & Grid Traps", "Dynamic Train Car Shifting", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Electrified Grid Shock", description: "Getting knocked into electrified rail lines causes instant environmental death." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_copero", [
+    {
+      id: "fp_copero_syndic_zenta",
+      name: "Syndic Zenta",
+      bossNames: ["syndic zenta"],
+      adds: ["chiss house security officer", "automated cryo-turret"],
+      phases: [p(1, "Villa Courtyard Firefight", "Turret Clearing & Cryo Spread", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Cryo-Freeze Barrage", description: "Getting frozen prevents dodging follow-up high-explosive sniper shots." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_copero_valen_hakan",
+      name: "Valen & Hakan",
+      bossNames: ["valen", "hakan"],
+      victoryRequires: ["valen", "hakan"],
+      adds: ["chiss security droid", "shield matrix pylon"],
+      phases: [p(1, "Dual Melee / Sniper Synergy", "Twin Boss Positioning", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Chiss Crossfire Snipe", description: "Failing to block line of sight during the dual-sniper charge deletes party members." },
+      ],
+      victoryEvent: "Both bosses defeated",
+    },
+  ]),
+  operation("fp_nathema", [
+    {
+      id: "fp_nathema_vindicator_hushev",
+      name: "Vindicator Hushev",
+      bossNames: ["vindicator hushev"],
+      adds: ["zealot defender", "purification probe"],
+      phases: [p(1, "Sanitarium Gates Engagement", "Add Waves & Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Purification Cleansing Blast", description: "Allowing purification probes to complete their heal triggers a full-party energy recoil." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_nathema_gemini_captain",
+      name: "GEMINI Captain",
+      bossNames: ["gemini captain"],
+      adds: ["gemini clone unit"],
+      phases: [p(1, "Laser Matrix & Reflection", "Laser Cleave & Reflection", "Encounter pull")],
+      wipeMechanics: [
+        { name: "GEMINI Feedback Overload", description: "Attacking the incorrect clone triggers full-party feedback wipe." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_meridian", [
+    {
+      id: "fp_meridian_darth_savik",
+      name: "Darth Savik / General Daerunn",
+      bossNames: ["darth savik", "general daerunn"],
+      victoryRequires: ["darth savik", "general daerunn"],
+      adds: ["sith assault droid", "republic commando"],
+      phases: [p(1, "Shipyard Catwalk Duel", "Lightning Net Cleansing", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Cybernetic Net Detonation", description: "Uncleansed lightning nets jump between allies and wipe the squad." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_meridian_apex_defense",
+      name: "Shield Core / Apex Defense",
+      bossNames: ["shield core", "commander defense"],
+      victoryRequires: ["shield core", "commander defense"],
+      adds: ["shipyard demolisher droid", "meridian shock trooper"],
+      phases: [p(1, "Battery Core Assault", "Console Cooling & Add Defense", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Coolant Vent Meltdown", description: "Failing to vent cooling conduits causes catastrophic reactor meltdown." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_sov", [
+    {
+      id: "fp_sov_bask_sunn",
+      name: "Bask Sunn",
+      bossNames: ["bask sunn"],
+      adds: ["ash'ad scout drone"],
+      phases: [p(1, "Hangar Deck Firefight", "Missile Kiting & Snipers", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Concussion Barrage", description: "Stacking missile circles results in instant party wipe." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_sov_troya_aven",
+      name: "Troya Aven",
+      bossNames: ["troya aven"],
+      adds: ["ash'ad sharpshooter", "ash'ad clan warrior"],
+      phases: [p(1, "Bridge Suppression", "Grapple & Cryo Grenade Cleaves", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Cryo-Detonation Chain", description: "Stacking cryo-grenades freezes the team and exposes them to missile strikes." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_sov_gorrasht",
+      name: "Gorrasht & Heta Kol",
+      bossNames: ["gorrasht", "heta kol"],
+      victoryRequires: ["gorrasht", "heta kol"],
+      adds: ["dar'manda heavy gunner", "dar'manda infiltrator"],
+      phases: [p(1, "Hangar Deck Standoff", "Add Priority & Heavy Cleaves", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Dar'manda Heavy Mortar Wave", description: "Allowing gunner adds to free-cast missile barrages wipes the group." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_sote", [
+    {
+      id: "fp_sote_gratua_sano",
+      name: "Gra'tua & Sano",
+      bossNames: ["gra'tua", "sano"],
+      victoryRequires: ["gra'tua", "sano"],
+      adds: ["dantooine mercenary gunner"],
+      phases: [p(1, "Dual Arena Engagement", "Twin Boss Split & Turret Slicing", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Suppression Crossfire Saturation", description: "Allowing both bosses to overlap suppression fire wipes the party." },
+      ],
+      victoryEvent: "Both bosses defeated",
+    },
+    {
+      id: "fp_sote_captain_aven",
+      name: "Captain Aven",
+      bossNames: ["captain aven"],
+      adds: ["enclave infiltrator droid"],
+      phases: [p(1, "Courtyard Defense", "Satchel Disarm & Droid Cleave", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Satchel Mine Explosion", description: "Detonation of uncleansed satchel charges wipes non-tanks." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_sote_malgus_apparition",
+      name: "Malgus Apparition",
+      bossNames: ["malgus apparition"],
+      adds: ["dantooine sith phantasm"],
+      phases: [p(1, "Enclave Sub-Level Duel", "Dark Force Reflection", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Corrupted Dark Force Storm", description: "A channeled room-wide storm must be interrupted immediately." },
+      ],
+      victoryEvent: "Apparition banished",
+    },
+  ]),
+  operation("fp_nul", [
+    {
+      id: "fp_nul_apex_predator",
+      name: "Apex Predator",
+      bossNames: ["apex predator"],
+      adds: ["elom snow stalker"],
+      phases: [p(1, "Snowy Ridge Combat", "Avalanche & Knockbacks", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Glacial Avalanche Punt", description: "Getting knocked off the mountain cliff causes irreversible environmental death." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_nul_lord_korkan",
+      name: "Lord Korkan",
+      bossNames: ["lord korkan"],
+      adds: ["awakened sith behemoth", "corrupted temple probe"],
+      phases: [p(1, "Relic Activation & Darkness Cleave", "Relic Cleansing & Add Control", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Dark Relic Overload", description: "Failure to destroy active relic conduits triggers an arena-wide dark Force explosion." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+  operation("fp_sos", [
+    {
+      id: "fp_sos_corrupted_keeper",
+      name: "The Corrupted Keeper",
+      bossNames: ["the corrupted keeper"],
+      adds: ["corrupted gormak zealot", "silent shroud anomaly"],
+      phases: [p(1, "Shrine Miasma & Curse Cleansing", "Voss Shrine Curse Management", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Miasma Curse Saturation", description: "Accumulating maximum cursed miasma stacks causes lethal ticks and party collapse." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+    {
+      id: "fp_sos_corrupted_abomination",
+      name: "The Corrupted Abomination",
+      bossNames: ["the corrupted abomination"],
+      adds: ["cursed gormak cultist", "purification font basin"],
+      phases: [p(1, "Cursed Miasma & Shrine Cleansing", "Voss Font Interaction", "Encounter pull")],
+      wipeMechanics: [
+        { name: "Miasma Decay Collapse", description: "Accumulating 10 stacks of cursed miasma triggers instant death and spreads the debuff." },
+      ],
+      victoryEvent: "Boss defeated",
+    },
+  ]),
+];
+
 export const ENCOUNTERS: readonly Encounter[] = [
   ...EV,
   ...KP,
@@ -1150,6 +2066,7 @@ export const ENCOUNTERS: readonly Encounter[] = [
   ...DXUN,
   ...R4,
   ...LAIR,
+  ...FLASHPOINTS.flat(),
 ];
 
 export const ENCOUNTERS_BY_ID = new Map(ENCOUNTERS.map((e) => [e.id, e]));

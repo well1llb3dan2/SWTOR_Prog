@@ -162,17 +162,10 @@
       <h2>Connection</h2>
       <div class="row">
         <div>
-          <label for="serverUrl">Server URL</label>
-          <input id="serverUrl" type="url" placeholder="http://localhost:3001" />
-        </div>
-        <div style="align-self: end"><button id="save">Save</button></div>
-      </div>
-      <div class="row">
-        <div>
           <label for="discordLogin">Discord account</label>
-          <div id="authState" class="detail">Sign in with Discord to link your account and start streaming.</div>
+          <div id="authState" class="detail">Discord not linked.</div>
         </div>
-        <div style="align-self: end"><button id="discordLogin">Sign in with Discord</button></div>
+        <div style="align-self: end"><button id="discordLogin">Sign out</button></div>
       </div>
       <div class="row">
         <div>
@@ -217,13 +210,6 @@
         <div><dt>Queued</dt><dd id="queued">0</dd></div>
         <div><dt>Unparsed lines</dt><dd id="unknown">0</dd></div>
       </dl>
-    </section>
-
-    <section>
-      <h2>Live API</h2>
-      <div class="detail" id="apiStatus">Checking API…</div>
-      <div class="detail" id="apiReports">No reports loaded yet.</div>
-      <div class="detail" id="sessionId">Session ID: not connected</div>
     </section>
 
     <script src="app.js"></script>
