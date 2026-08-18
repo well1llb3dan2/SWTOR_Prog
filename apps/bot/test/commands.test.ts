@@ -22,4 +22,24 @@ describe("registerSlashCommands", () => {
     expect(calls[0]?.commands).toHaveLength(1);
     expect(calls[0]?.commands[0]).toMatchObject({ name: "link" });
   });
+
+  it("registers commands for every configured guild when multiple guild ids are supplied", async () => {
+    const calls: Array<{ commands: unknown[]; guildId?: string }> = [];
+    const client = {
+      application: {
+        commands: {
+          set: async (commands: unknown[], guildId?: string) => {
+            calls.push({ commands, guildId });
+            return commands;
+          },
+        },
+      },
+    } as never;
+
+    await registerSlashCommands(client, ["guild-123", "guild-456"]);
+
+    expect(calls).toHaveLength(2);
+    expect(calls.map((call) => call.guildId)).toEqual(["guild-123", "guild-456"]);
+    expect(calls.every((call) => Array.isArray(call.commands) && call.commands.length === 1 && typeof call.commands[0] === "object" && call.commands[0] !== null && "name" in call.commands[0] && call.commands[0].name === "link")).toBe(true);
+  });
 });

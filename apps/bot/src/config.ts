@@ -2,7 +2,8 @@ import { z } from "zod";
 
 const schema = z.object({
   DISCORD_TOKEN: z.string().min(20),
-  GUILD_ID: z.string().min(5).optional(),
+  GUILD_ID: z.string().optional(),
+  GUILD_IDS: z.string().optional(),
   PROGRESSION_CHANNEL_ID: z.string().min(5),
   /** Channel signup posts go to; defaults to the progression channel. */
   SIGNUP_CHANNEL_ID: z.string().min(5).optional(),
@@ -31,13 +32,24 @@ export interface BotConfig {
   apiUrl: string;
   feedToken: string;
   webUrl: string;
-  guildId?: string;
+  guildIds: string[];
   closeWipePercent: number;
   bossesOnly: boolean;
 }
 
+export function parseGuildIds(raw?: string): string[] {
+  const values = (raw ?? "")
+    .split(",")
+    .map((guildId) => guildId.trim())
+    .filter(Boolean);
+
+  return [...new Set(values)];
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BotConfig {
   const parsed = schema.parse(env);
+  const guildIds = parseGuildIds(parsed.GUILD_ID ?? parsed.GUILD_IDS);
+
   return {
     discordToken: parsed.DISCORD_TOKEN,
     progressionChannelId: parsed.PROGRESSION_CHANNEL_ID,
@@ -46,7 +58,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BotConfig {
     apiUrl: parsed.API_URL,
     feedToken: parsed.FEED_TOKEN,
     webUrl: parsed.WEB_URL,
-    guildId: parsed.GUILD_ID,
+    guildIds,
     closeWipePercent: parsed.CLOSE_WIPE_PERCENT,
     bossesOnly: parsed.BOSSES_ONLY,
   };

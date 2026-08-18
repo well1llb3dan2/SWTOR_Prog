@@ -42,7 +42,7 @@ export function waitForClientReady(client: { once: (event: string, handler: () =
 
 export async function registerSlashCommands(
   client: { application: { commands: { set: (commands: unknown[], guildId?: string) => Promise<unknown> } } | null },
-  guildId?: string,
+  guildIds?: string | string[],
 ): Promise<void> {
   const commands = [
     new SlashCommandBuilder()
@@ -51,7 +51,15 @@ export async function registerSlashCommands(
       .toJSON(),
   ];
 
-  await client.application?.commands.set(commands, guildId);
+  const ids = Array.isArray(guildIds) ? guildIds : guildIds ? [guildIds] : [];
+  if (ids.length === 0) {
+    await client.application?.commands.set(commands);
+    return;
+  }
+
+  for (const guildId of ids) {
+    await client.application?.commands.set(commands, guildId);
+  }
 }
 
 /**
@@ -99,7 +107,7 @@ export async function startBot(config: BotConfig): Promise<() => Promise<void>> 
     console.warn("Could not load progression history; first kills may be re-announced");
   }
 
-  await registerSlashCommands(client, config.guildId);
+  await registerSlashCommands(client, config.guildIds);
 
   client.on("interactionCreate", async (interaction) => {
     if (!interaction.isChatInputCommand() || interaction.commandName !== "link") return;
