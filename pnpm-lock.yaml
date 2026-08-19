@@ -109,6 +109,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@swtor/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@swtor/parser':
         specifier: workspace:*
         version: link:../../packages/parser
