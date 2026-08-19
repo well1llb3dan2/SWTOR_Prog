@@ -16,13 +16,17 @@ win:
   target:
     - target: nsis
       arch: [x64]
+    - target: portable
+      arch: [x64]
+    - target: zip
+      arch: [x64]
   sign: false
   signAndEditExecutable: false
   icon: build/icon.ico
 
 # Avoid code-signing infrastructure issues on local builds.
 # Set CSC_LINK / CSC_KEY_PASSWORD later if you want a signed installer.
-artifactName: SWTOR-Combat-Streamer-${version}-setup.${ext}
+artifactName: ${productName}-${version}-${arch}.${ext}
 
 electronDownload:
   mirror: https://npmmirror.com/mirrors/electron/
