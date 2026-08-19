@@ -1,6 +1,6 @@
 {
   "name": "@swtor/desktop",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "type": "module",
   "description": "SWTOR Combat Streamer desktop client",
@@ -14,11 +14,11 @@
     "build:main": "esbuild src/main.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist/main.cjs",
     "build:preload": "esbuild src/preload.ts --bundle --platform=node --format=cjs --target=node20 --external:electron --outfile=dist/preload.cjs",
     "build:renderer": "esbuild src/renderer/index.html src/renderer/app.js --outdir=dist/renderer --loader:.html=copy --loader:.js=copy",
-    "build": "pnpm build:main && pnpm build:preload && pnpm build:renderer",
-    "package": "pnpm build && electron-builder --config electron-builder.yml --publish never",
-    "release": "pnpm build && electron-builder --config electron-builder.yml --publish always",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "package": "npm run build && electron-builder --config electron-builder.yml --publish never",
+    "release": "npm run build && electron-builder --config electron-builder.yml --publish always",
     "start": "electron .",
-    "dev": "pnpm build && electron .",
+    "dev": "npm run build && electron .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
