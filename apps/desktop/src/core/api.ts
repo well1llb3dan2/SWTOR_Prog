@@ -31,7 +31,7 @@ export function normalizeBaseUrl(serverUrl: string): string {
   if (url.endsWith("/api")) {
     url = url.slice(0, -4).replace(/\/+$/, "");
   }
-  return url || "https://infamous-command.onrender.com";
+  return url || (process.env.MERLIN_SERVER_URL ?? process.env.SWTOR_SERVER_URL ?? "https://api.infamous-guild.com");
 }
 
 export async function reportDetectedCharacter(

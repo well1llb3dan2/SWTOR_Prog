@@ -12,7 +12,7 @@ export interface DesktopSettings {
 
 export function defaultSettings(): DesktopSettings {
   return {
-    serverUrl: process.env.MERLIN_SERVER_URL ?? process.env.SWTOR_SERVER_URL ?? "https://infamous-command.onrender.com",
+    serverUrl: process.env.MERLIN_SERVER_URL ?? process.env.SWTOR_SERVER_URL ?? "https://api.infamous-guild.com",
     token: "",
     logDirectory: defaultLogDirectory(),
     autoStart: false,
@@ -26,8 +26,11 @@ export async function loadSettings(path: string): Promise<DesktopSettings> {
 
   try {
     const parsed = JSON.parse(raw) as Partial<DesktopSettings>;
-    // Migrate any legacy SWTOR API domain or empty URL to Merlin default URL
-    const isLegacyUrl = !parsed.serverUrl || parsed.serverUrl.includes("swtor-api.onrender.com");
+    // Migrate any legacy SWTOR API domain or old render URL to current Merlin default URL
+    const isLegacyUrl =
+      !parsed.serverUrl ||
+      parsed.serverUrl.includes("swtor-api.onrender.com") ||
+      parsed.serverUrl.includes("infamous-command.onrender.com");
     const serverUrl = isLegacyUrl ? defaults.serverUrl : parsed.serverUrl;
 
     return { ...defaults, ...parsed, serverUrl };
