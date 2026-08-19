@@ -38,12 +38,12 @@ export class LogParser {
   #lineNumber = 0;
 
   constructor(options: LogParserOptions) {
-    const identity = options.identity ?? parseLogFileName(options.fileName);
-    if (identity === null) {
-      throw new Error(
-        `Cannot determine log date from "${options.fileName}"; pass an explicit identity.`,
-      );
-    }
+    const identity = options.identity ?? parseLogFileName(options.fileName) ?? {
+      year: new Date().getFullYear(),
+      month: new Date().getMonth() + 1,
+      day: new Date().getDate(),
+      startedAt: Date.now(),
+    };
     this.#clock = new TimelineClock(identity);
   }
 

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
+import { CombatSession } from "@swtor/analytics";
 import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportProgressionPull } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { newestLogFile } from "./core/logDirectory.js";
@@ -12,7 +13,7 @@ import {
   settingsPath,
   type DesktopSettings,
 } from "./core/settings.js";
-import { LogStreamer } from "./core/streamer.js";
+import { LogStreamer, readInitialLogIdentity } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
@@ -43,6 +44,7 @@ let settings: DesktopSettings;
 let client: IngestClient | null = null;
 let streamer: LogStreamer | null = null;
 let replay: ReplaySource | null = null;
+let replayCombatSession: CombatSession | null = null;
 
 const status: AppStatus = {
   mode: "idle",
@@ -90,6 +92,8 @@ function teardown(): void {
   streamer = null;
   replay?.stop();
   replay = null;
+  replayCombatSession?.end();
+  replayCombatSession = null;
   client?.disconnect();
   client = null;
 }
@@ -148,29 +152,190 @@ async function startReplay(
   filePath: string,
   speed: number,
 ): Promise<{ ok: boolean; error?: string }> {
-  if (settings.token.length === 0) return { ok: false, error: "Set an ingest token first" };
+  if (settings.token.length === 0) {
+    return { ok: false, error: "Please click 'Sign in with Discord' first to link your account to Merlin." };
+  }
   teardown();
 
-  const active = ensureClient();
+  let detectedCharacterName: string | null = null;
+  let serverId: string | null = null;
+  let discipline: string | null = null;
+  let zone: string | null = null;
+  let localPlayerId: string | null = null;
+  let activeBoss: string | null = null;
+  let lastPullOutcome: string | null = null;
+  let unknownLines = 0;
+  let eventsParsed = 0;
+  const recentTimestamps: number[] = [];
+
+  const trackRate = (count: number) => {
+    const now = Date.now();
+    for (let i = 0; i < count; i += 1) recentTimestamps.push(now);
+    const cutoff = now - 5_000;
+    while (recentTimestamps.length > 0 && recentTimestamps[0]! < cutoff) {
+      recentTimestamps.shift();
+    }
+  };
+
+  const getRate = () => Math.round(recentTimestamps.length / 5);
+
+  // Read initial identity from header
+  const initialIdentity = await readInitialLogIdentity(filePath);
+  if (initialIdentity) {
+    localPlayerId = initialIdentity.playerId;
+    detectedCharacterName = initialIdentity.characterName;
+    serverId = initialIdentity.serverId ?? null;
+    discipline = initialIdentity.discipline ?? null;
+    zone = initialIdentity.zone ?? null;
+
+    publish({
+      detectedCharacter: detectedCharacterName,
+      zone,
+      detail: `Syncing character "${detectedCharacterName}" to Merlin...`,
+    });
+
+    try {
+      await reportDetectedCharacter(settings.serverUrl, settings.token, {
+        characterName: detectedCharacterName,
+        serverId,
+        discipline,
+        occurredAt: new Date().toISOString(),
+      });
+      publish({ detail: `Character "${detectedCharacterName}" synced to Merlin.` });
+    } catch (err) {
+      console.warn("Character sync to Merlin failed during replay:", err);
+    }
+  }
+
+  const combat = new CombatSession({
+    onPullStart: (live) => {
+      activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull";
+      publish({
+        activeBoss,
+        detail: `[Replay ${speed}x] In combat: ${activeBoss}`,
+      });
+    },
+    onPullEnd: async (pull) => {
+      activeBoss = null;
+      if (pull.boss?.isLikelyBoss === true || pull.encounter !== null) {
+        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+        lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
+        publish({
+          activeBoss: null,
+          lastPullOutcome,
+          detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...`,
+        });
+        try {
+          await reportProgressionPull(
+            settings.serverUrl,
+            settings.token,
+            pull,
+            detectedCharacterName ?? "Unknown Character",
+            serverId,
+          );
+          publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          publish({ detail: `Pull sync to Merlin failed: ${message}` });
+          console.warn("Pull reporting to Merlin API encountered:", err);
+        }
+      } else {
+        publish({ activeBoss: null });
+      }
+    },
+  });
+  replayCombatSession = combat;
+
   replay = new ReplaySource({
     filePath,
-    speed,
+    speed: speed > 0 ? speed : 4,
+    tickMs: 50,
     onEvents: (events) => {
-      active.send(events);
-      publish({ eventsParsed: status.eventsParsed + events.length });
+      for (const event of events) {
+        if (event.type === "unknown") unknownLines += 1;
+
+        if (event.type === "areaEntered") {
+          if (localPlayerId === null || (event.source?.kind === "player" && event.source.playerId === localPlayerId)) {
+            zone = event.zone.name;
+            if (event.serverId) serverId = event.serverId;
+            if (event.source?.kind === "player") {
+              localPlayerId = event.source.playerId;
+              detectedCharacterName = event.source.name.trim();
+            }
+          }
+        }
+
+        if (event.type === "disciplineChanged") {
+          if (event.source?.kind === "player" && (localPlayerId === null || event.source.playerId === localPlayerId)) {
+            localPlayerId = event.source.playerId;
+            detectedCharacterName = event.source.name.trim();
+            discipline = event.discipline.name;
+          }
+        }
+
+        if (localPlayerId === null && event.source?.kind === "player" && (event.type === "areaEntered" || event.type === "disciplineChanged")) {
+          localPlayerId = event.source.playerId;
+          detectedCharacterName = event.source.name.trim();
+        }
+
+        combat.push(event);
+      }
+
+      eventsParsed += events.length;
+      trackRate(events.length);
+
+      publish({
+        mode: "replay",
+        connection: "connected",
+        fileName: replay?.fileName ?? filePath,
+        zone,
+        detectedCharacter: detectedCharacterName,
+        eventsParsed,
+        eventsPerSecond: getRate(),
+        unknownLines,
+      });
     },
-    onProgress: (progress) =>
-      publish({ replayProgress: Math.round((progress.emitted / progress.total) * 100) }),
-    onDone: () => publish({ mode: "idle", replayProgress: 100 }),
+    onProgress: (progress) => {
+      const pct = Math.min(100, Math.round((progress.emitted / progress.total) * 100));
+      publish({ replayProgress: pct });
+    },
+    onDone: () => {
+      combat.end();
+      publish({
+        mode: "idle",
+        connection: "idle",
+        activeBoss: null,
+        replayProgress: 100,
+        detail: `Replay completed (${eventsParsed.toLocaleString()} events).`,
+      });
+    },
   });
 
-  const total = await replay.load();
-  if (total === 0) return { ok: false, error: "No events found in that log" };
+  let total = 0;
+  try {
+    total = await replay.load();
+  } catch (loadErr) {
+    const msg = loadErr instanceof Error ? loadErr.message : String(loadErr);
+    return { ok: false, error: `Failed to load log file: ${msg}` };
+  }
 
-  active.connect(replay.fileName, replay.startedAt);
+  if (total === 0) return { ok: false, error: "No combat events found in that log file." };
+
   replay.start();
 
-  publish({ mode: "replay", fileName: replay.fileName, eventsParsed: 0, replayProgress: 0 });
+  publish({
+    mode: "replay",
+    connection: "connected",
+    fileName: replay.fileName,
+    zone,
+    detectedCharacter: detectedCharacterName,
+    activeBoss: null,
+    lastPullOutcome: null,
+    eventsParsed: 0,
+    replayProgress: 0,
+    detail: `Replaying ${replay.fileName} at ${speed}x speed...`,
+  });
+
   return { ok: true };
 }
 
