@@ -24,6 +24,12 @@ function render(status) {
   if ($("detectedCharacter")) {
     $("detectedCharacter").textContent = status.detectedCharacter ?? "—";
   }
+  if ($("activeBoss")) {
+    $("activeBoss").textContent = status.activeBoss ?? "—";
+  }
+  if ($("lastPullOutcome")) {
+    $("lastPullOutcome").textContent = status.lastPullOutcome ?? "—";
+  }
   $("fileName").textContent = status.fileName ?? "—";
   $("zone").textContent = status.zone ?? "—";
   $("rate").textContent = number.format(status.eventsPerSecond);

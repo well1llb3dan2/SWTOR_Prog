@@ -1,3 +1,5 @@
+import type { PullSummary } from "@swtor/analytics";
+
 export interface ApiHealth {
   status: string;
   sessions: number;
@@ -62,6 +64,68 @@ export async function reportDetectedCharacter(
     throw new Error(body.error ?? `Character detection failed (${response.status})`);
   }
   return { accepted: true, characterName: character.characterName };
+}
+
+export async function reportProgressionPull(
+  serverUrl: string,
+  token: string,
+  pull: PullSummary,
+  localCharacterName: string,
+  serverId?: string | null,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ accepted: boolean; encounterName: string; outcome: string }> {
+  const url = `${serverUrl.replace(/\/$/, "")}/api/progression/ingest`;
+  const encounterId = pull.encounter?.encounterId ?? pull.boss?.npcId ?? "boss-fight";
+  const encounterName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
+  const outcome = pull.outcome === "kill" ? "kill" : "wipe";
+  const occurredAt = new Date(pull.endedAt || Date.now()).toISOString();
+
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}`, "x-swtor-prog-token": token } : {}),
+    },
+    body: JSON.stringify({
+      schema: "progression-event",
+      version: "1.0",
+      guildId: "default",
+      generatedAt: new Date().toISOString(),
+      source: "SWTOR_Prog",
+      visibility: "guild",
+      event: {
+        encounterId,
+        encounterName,
+        outcome,
+        characterName: localCharacterName,
+        serverId: serverId ?? undefined,
+        difficulty: pull.difficulty ?? "Veteran",
+        occurredAt,
+        details: {
+          operationId: pull.encounter?.operationId,
+          operationName: pull.encounter?.operationName,
+          bossPhases: (pull.encounter?.phases ?? []).map((phase) => ({
+            order: phase.order,
+            name: phase.name,
+            style: phase.style,
+            trigger: phase.trigger,
+            outcome,
+          })),
+          enemyFights: (pull.encounter?.matchedBosses ?? []).map((enemyName, index) => ({
+            enemyName,
+            outcome,
+            phaseName: (pull.encounter?.phases ?? [])[index]?.name,
+          })),
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Progression pull reporting failed (${response.status})`);
+  }
+  return { accepted: true, encounterName, outcome };
 }
 
 export async function fetchApiHealth(

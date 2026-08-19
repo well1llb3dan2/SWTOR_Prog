@@ -1,4 +1,5 @@
 import { LogParser } from "@swtor/parser";
+import { CombatSession, type PullSummary } from "@swtor/analytics";
 import type { CombatEvent } from "@swtor/shared";
 import { EventBatcher } from "./batcher.js";
 import type { IngestClient } from "./ingestClient.js";
@@ -14,6 +15,8 @@ export interface StreamerStatus {
   unknownLines: number;
   zone: string | null;
   detectedCharacter?: string | null;
+  activeBoss?: string | null;
+  lastPullOutcome?: string | null;
 }
 
 export interface LogStreamerOptions {
@@ -21,18 +24,21 @@ export interface LogStreamerOptions {
   client: IngestClient;
   onStatus?: (status: StreamerStatus) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
+  onPullCompleted?: (pull: PullSummary, characterName: string, serverId: string | null) => void;
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
 }
 
-/** Wires the tailer, parser, batcher and ingest client into one pipeline. */
+/** Wires the tailer, parser, batcher, analytics, and ingest client into one pipeline. */
 export class LogStreamer {
   readonly #client: IngestClient;
   readonly #tailer: LogTailer;
   readonly #batcher: EventBatcher;
   readonly #onStatus: ((status: StreamerStatus) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
+  readonly #onPullCompleted: ((pull: PullSummary, characterName: string, serverId: string | null) => void) | undefined;
 
   #parser: LogParser | null = null;
+  #combat: CombatSession | null = null;
   #fileName: string | null = null;
   #eventsParsed = 0;
   #unknownLines = 0;
@@ -40,6 +46,8 @@ export class LogStreamer {
   #serverId: string | null = null;
   #discipline: string | null = null;
   #detectedCharacterName: string | null = null;
+  #activeBoss: string | null = null;
+  #lastPullOutcome: string | null = null;
   #seenCharacters = new Set<string>();
   #recentTimestamps: number[] = [];
 
@@ -47,6 +55,7 @@ export class LogStreamer {
     this.#client = options.client;
     this.#onStatus = options.onStatus;
     this.#onCharacterDetected = options.onCharacterDetected;
+    this.#onPullCompleted = options.onPullCompleted;
 
     this.#batcher = new EventBatcher({
       maxEvents: 50,
@@ -69,6 +78,8 @@ export class LogStreamer {
       unknownLines: this.#unknownLines,
       zone: this.#zone,
       detectedCharacter: this.#detectedCharacterName,
+      activeBoss: this.#activeBoss,
+      lastPullOutcome: this.#lastPullOutcome,
     };
   }
 
@@ -79,6 +90,8 @@ export class LogStreamer {
   stop(): void {
     this.#tailer.stop();
     this.#batcher.stop();
+    this.#combat?.end();
+    this.#combat = null;
   }
 
   #onFileChange(file: LogFileInfo | null): void {
@@ -87,9 +100,14 @@ export class LogStreamer {
     this.#serverId = null;
     this.#discipline = null;
     this.#detectedCharacterName = null;
+    this.#activeBoss = null;
+    this.#lastPullOutcome = null;
     this.#seenCharacters.clear();
     this.#eventsParsed = 0;
     this.#unknownLines = 0;
+
+    this.#combat?.end();
+    this.#combat = null;
 
     if (file === null) {
       this.#parser = null;
@@ -97,6 +115,23 @@ export class LogStreamer {
     }
 
     this.#parser = new LogParser({ fileName: file.name });
+    this.#combat = new CombatSession({
+      onPullStart: (live) => {
+        this.#activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull";
+        this.#onStatus?.(this.status);
+      },
+      onPullEnd: (pull) => {
+        this.#activeBoss = null;
+        if (pull.boss?.isLikelyBoss === true || pull.encounter !== null) {
+          const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+          this.#lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
+          const characterName = this.#detectedCharacterName ?? "Unknown Character";
+          this.#onPullCompleted?.(pull, characterName, this.#serverId);
+        }
+        this.#onStatus?.(this.status);
+      },
+    });
+
     const identity = parseLogFileName(file.name);
     this.#client.restartSession(file.name, identity?.startedAt ?? Date.now());
     this.#onStatus?.(this.status);
@@ -130,6 +165,7 @@ export class LogStreamer {
           });
         }
       }
+      this.#combat?.push(event);
       events.push(event);
     }
 

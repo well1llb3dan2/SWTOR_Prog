@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import { fetchApiHealth, fetchApiReports, reportDetectedCharacter } from "./core/api.js";
+import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportProgressionPull } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { newestLogFile } from "./core/logDirectory.js";
 import { ReplaySource } from "./core/replay.js";
@@ -28,6 +28,8 @@ interface AppStatus {
   fileName: string | null;
   zone: string | null;
   detectedCharacter: string | null;
+  activeBoss: string | null;
+  lastPullOutcome: string | null;
   eventsParsed: number;
   eventsPerSecond: number;
   unknownLines: number;
@@ -51,6 +53,8 @@ const status: AppStatus = {
   fileName: null,
   zone: null,
   detectedCharacter: null,
+  activeBoss: null,
+  lastPullOutcome: null,
   eventsParsed: 0,
   eventsPerSecond: 0,
   unknownLines: 0,
@@ -109,6 +113,8 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
         eventsPerSecond: s.eventsPerSecond,
         unknownLines: s.unknownLines,
         detectedCharacter: s.detectedCharacter,
+        activeBoss: s.activeBoss,
+        lastPullOutcome: s.lastPullOutcome,
       }),
     onCharacterDetected: async (character) => {
       try {
@@ -116,6 +122,13 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
         await reportDetectedCharacter(settings.serverUrl, settings.token, character);
       } catch (err) {
         console.warn("Character reporting to Merlin API encountered:", err);
+      }
+    },
+    onPullCompleted: async (pull, characterName, serverId) => {
+      try {
+        await reportProgressionPull(settings.serverUrl, settings.token, pull, characterName, serverId);
+      } catch (err) {
+        console.warn("Pull reporting to Merlin API encountered:", err);
       }
     },
   });
