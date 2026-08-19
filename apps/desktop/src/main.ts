@@ -95,7 +95,7 @@ function teardown(): void {
 }
 
 async function startLive(): Promise<{ ok: boolean; error?: string }> {
-  if (settings.token.length === 0) return { ok: false, error: "Set an ingest token or sign in with Discord first" };
+  if (settings.token.length === 0) return { ok: false, error: "Please click 'Sign in with Discord' first to link your account to Merlin." };
   teardown();
 
   const newest = await newestLogFile(settings.logDirectory);
@@ -118,23 +118,31 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
       }),
     onCharacterDetected: async (character) => {
       try {
-        publish({ detectedCharacter: character.characterName });
+        publish({ detectedCharacter: character.characterName, detail: `Syncing character "${character.characterName}" to Merlin...` });
         await reportDetectedCharacter(settings.serverUrl, settings.token, character);
+        publish({ detail: `Character "${character.characterName}" synced to Merlin.` });
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        publish({ detail: `Character sync to Merlin failed: ${message}` });
         console.warn("Character reporting to Merlin API encountered:", err);
       }
     },
     onPullCompleted: async (pull, characterName, serverId) => {
       try {
+        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+        publish({ detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...` });
         await reportProgressionPull(settings.serverUrl, settings.token, pull, characterName, serverId);
+        publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        publish({ detail: `Pull sync to Merlin failed: ${message}` });
         console.warn("Pull reporting to Merlin API encountered:", err);
       }
     },
   });
   streamer.start();
 
-  publish({ mode: "live", replayProgress: null });
+  publish({ mode: "live", replayProgress: null, detail: "Streaming combat logs..." });
   return { ok: true };
 }
 
@@ -255,7 +263,8 @@ app.whenReady().then(async () => {
   ipcMain.handle("auth:discord", async () => {
     try {
       const listener = await startDesktopAuthListener();
-      const authUrl = new URL(`${settings.serverUrl}/auth/discord`);
+      const baseUrl = (settings.serverUrl || "http://localhost:3000").replace(/\/$/, "");
+      const authUrl = new URL(`${baseUrl}/auth/discord`);
       authUrl.searchParams.set("desktop", "1");
       authUrl.searchParams.set("redirectUri", listener.redirectUri);
 

@@ -12,7 +12,7 @@ export interface DesktopSettings {
 
 export function defaultSettings(): DesktopSettings {
   return {
-    serverUrl: "https://swtor-api.onrender.com",
+    serverUrl: "https://infamous-command.onrender.com",
     token: "",
     logDirectory: defaultLogDirectory(),
     autoStart: false,
