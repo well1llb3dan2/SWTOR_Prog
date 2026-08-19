@@ -257,4 +257,39 @@ describe("LogStreamer local player isolation", () => {
     expect(detected).toHaveLength(1);
     expect(detected[0]!.characterName).toBe("ValeRook");
   });
+
+  it("reads the start of the file on attach even when startAtEnd is true", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "swtor-streamer-startatend-"));
+    temporaryDirs.push(dir);
+    const fileName = "combat_2026-08-18_21_00_00_000000.txt";
+    const logPath = join(dir, fileName);
+
+    const lines = [
+      // Line 1 & 2: Local player log header
+      `[21:00:00.000] [@CommanderTwistle#777777777777777|(0,0,0,0)|(1/1)] [] [] [AreaEntered {836045448953664}: Onderon {137438989514}] (he3000)`,
+      `[21:00:00.000] [@CommanderTwistle#777777777777777|(0,0,0,0)|(1/1)] [] [] [DisciplineChanged {836045448953665}: Sentinel {16141154905109553504}/Watchman {2031339142381614}]`,
+      // Subsequent lines: party activity
+      `[21:05:00.000] [@OtherPlayer#222222222222222|(0,0,0,0)|(1/1)] [=] [Sprint {810670782152704}] [ApplyEffect {836045448945477}: Sprint {810670782152704}]`,
+    ];
+
+    await writeFile(logPath, lines.join("\n") + "\n", "utf8");
+
+    const detected: Array<{ characterName: string; discipline?: string | null }> = [];
+    const streamer = new LogStreamer({
+      directory: dir,
+      client: null,
+      onCharacterDetected: (char) => detected.push(char),
+      tailer: { pollIntervalMs: 10, startAtEnd: true },
+    });
+
+    streamer.start();
+
+    // Wait for tailer polling
+    await new Promise((r) => setTimeout(r, 60));
+    streamer.stop();
+
+    expect(detected).toHaveLength(1);
+    expect(detected[0]!.characterName).toBe("CommanderTwistle");
+    expect(detected[0]!.discipline).toBe("Watchman");
+  });
 });

@@ -5,7 +5,7 @@ import { decodeLogText } from "./encoding.js";
 
 export interface TailerEvents {
   onLines: (lines: string[], file: LogFileInfo) => void;
-  onFileChange?: (file: LogFileInfo | null) => void;
+  onFileChange?: (file: LogFileInfo | null) => void | Promise<void>;
   onError?: (error: unknown) => void;
 }
 
@@ -99,7 +99,7 @@ export class LogTailer {
       // Only the very first attach skips history; a log that rotates mid-raid
       // is a new session and must be read from the top.
       this.#offset = first && this.#options.startAtEnd ? newest.size : 0;
-      this.#options.onFileChange?.(newest);
+      await this.#options.onFileChange?.(newest);
     }
 
     const stats = await stat(newest.path);

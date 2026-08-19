@@ -1,12 +1,67 @@
-import { LogParser } from "@swtor/parser";
+import { open } from "node:fs/promises";
+import { LogParser, parseLine, parseLogFileName } from "@swtor/parser";
 import { CombatSession, type PullSummary } from "@swtor/analytics";
 import type { CombatEvent } from "@swtor/shared";
 import { EventBatcher } from "./batcher.js";
 import type { IngestClient } from "./ingestClient.js";
-import { parseLogFileName } from "@swtor/parser";
 import { LogTailer, type TailerOptions } from "./tailer.js";
 import type { LogFileInfo } from "./logDirectory.js";
 import type { DetectedCharacterInput } from "./api.js";
+import { decodeLogText } from "./encoding.js";
+
+export interface LogFileInitialIdentity {
+  characterName: string;
+  playerId: string;
+  serverId?: string | null;
+  discipline?: string | null;
+  zone?: string | null;
+}
+
+export async function readInitialLogIdentity(filePath: string): Promise<LogFileInitialIdentity | null> {
+  try {
+    const handle = await open(filePath, "r");
+    try {
+      const buffer = Buffer.alloc(65536);
+      const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+      if (bytesRead === 0) return null;
+      const text = decodeLogText(buffer.subarray(0, bytesRead));
+      const lines = text.split(/\r?\n/);
+
+      let characterName: string | null = null;
+      let playerId: string | null = null;
+      let serverId: string | null = null;
+      let discipline: string | null = null;
+      let zone: string | null = null;
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        const parsed = parseLine(line, { timestamp: 0, lineNumber: 1 });
+        if (parsed.type === "areaEntered" && parsed.source?.kind === "player") {
+          characterName = parsed.source.name.trim();
+          playerId = parsed.source.playerId;
+          serverId = parsed.serverId ?? null;
+          zone = parsed.zone.name;
+        } else if (parsed.type === "disciplineChanged" && parsed.source?.kind === "player") {
+          if (playerId === null || parsed.source.playerId === playerId) {
+            characterName = parsed.source.name.trim();
+            playerId = parsed.source.playerId;
+            discipline = parsed.discipline.name;
+          }
+        }
+        if (characterName && discipline) break;
+      }
+
+      if (characterName && playerId) {
+        return { characterName, playerId, serverId, discipline, zone };
+      }
+      return null;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return null;
+  }
+}
 
 export interface StreamerStatus {
   fileName: string | null;
@@ -95,7 +150,7 @@ export class LogStreamer {
     this.#combat = null;
   }
 
-  #onFileChange(file: LogFileInfo | null): void {
+  async #onFileChange(file: LogFileInfo | null): Promise<void> {
     this.#fileName = file?.name ?? null;
     this.#zone = null;
     this.#serverId = null;
@@ -136,6 +191,24 @@ export class LogStreamer {
 
     const identity = parseLogFileName(file.name);
     this.#client?.restartSession(file.name, identity?.startedAt ?? Date.now());
+
+    // Always read the beginning of the log file to definitively identify the local player
+    const initialIdentity = await readInitialLogIdentity(file.path);
+    if (initialIdentity) {
+      this.#localPlayerId = initialIdentity.playerId;
+      this.#detectedCharacterName = initialIdentity.characterName;
+      this.#serverId = initialIdentity.serverId ?? null;
+      this.#discipline = initialIdentity.discipline ?? null;
+      this.#zone = initialIdentity.zone ?? null;
+      this.#characterReported = true;
+      this.#onCharacterDetected?.({
+        characterName: initialIdentity.characterName,
+        serverId: this.#serverId,
+        discipline: this.#discipline,
+        occurredAt: new Date(identity?.startedAt ?? Date.now()).toISOString(),
+      });
+    }
+
     this.#onStatus?.(this.status);
   }
 
@@ -149,17 +222,14 @@ export class LogStreamer {
       if (event.type === "unknown") this.#unknownLines += 1;
 
       if (event.type === "areaEntered") {
-        this.#zone = event.zone.name;
-        if (event.serverId) this.#serverId = event.serverId;
-        if (event.source?.kind === "player") {
-          this.#localPlayerId = event.source.playerId;
-          this.#detectedCharacterName = event.source.name.trim();
+        if (this.#localPlayerId === null || (event.source?.kind === "player" && event.source.playerId === this.#localPlayerId)) {
+          this.#zone = event.zone.name;
+          if (event.serverId) this.#serverId = event.serverId;
+          if (event.source?.kind === "player") {
+            this.#localPlayerId = event.source.playerId;
+            this.#detectedCharacterName = event.source.name.trim();
+          }
         }
-      }
-
-      if (this.#localPlayerId === null && event.source?.kind === "player" && event.source.name.trim().length > 0) {
-        this.#localPlayerId = event.source.playerId;
-        this.#detectedCharacterName = event.source.name.trim();
       }
 
       if (event.type === "disciplineChanged") {
@@ -168,6 +238,11 @@ export class LogStreamer {
           this.#detectedCharacterName = event.source.name.trim();
           this.#discipline = event.discipline.name;
         }
+      }
+
+      if (this.#localPlayerId === null && event.source?.kind === "player" && (event.type === "areaEntered" || event.type === "disciplineChanged")) {
+        this.#localPlayerId = event.source.playerId;
+        this.#detectedCharacterName = event.source.name.trim();
       }
 
       if (this.#detectedCharacterName && !this.#characterReported) {
