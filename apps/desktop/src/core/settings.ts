@@ -26,10 +26,9 @@ export async function loadSettings(path: string): Promise<DesktopSettings> {
 
   try {
     const parsed = JSON.parse(raw) as Partial<DesktopSettings>;
-    // Migrate any legacy default domain or apply ENV override if configured
-    const serverUrl = (parsed.serverUrl === "https://swtor-api.onrender.com" || !parsed.serverUrl)
-      ? defaults.serverUrl
-      : parsed.serverUrl;
+    // Migrate any legacy SWTOR API domain or empty URL to Merlin default URL
+    const isLegacyUrl = !parsed.serverUrl || parsed.serverUrl.includes("swtor-api.onrender.com");
+    const serverUrl = isLegacyUrl ? defaults.serverUrl : parsed.serverUrl;
 
     return { ...defaults, ...parsed, serverUrl };
   } catch {

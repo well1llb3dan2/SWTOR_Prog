@@ -26,13 +26,22 @@ export interface DetectedCharacterInput {
   occurredAt?: string;
 }
 
+export function normalizeBaseUrl(serverUrl: string): string {
+  let url = (serverUrl || "").trim().replace(/\/+$/, "");
+  if (url.endsWith("/api")) {
+    url = url.slice(0, -4).replace(/\/+$/, "");
+  }
+  return url || "https://infamous-command.onrender.com";
+}
+
 export async function reportDetectedCharacter(
   serverUrl: string,
   token: string,
   character: DetectedCharacterInput,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ accepted: boolean; characterName: string }> {
-  const url = `${serverUrl.replace(/\/$/, "")}/api/progression/ingest`;
+  const baseUrl = normalizeBaseUrl(serverUrl);
+  const url = `${baseUrl}/api/progression/ingest`;
   const response = await fetchImpl(url, {
     method: "POST",
     headers: {
@@ -61,7 +70,7 @@ export async function reportDetectedCharacter(
 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Character detection failed (${response.status})`);
+    throw new Error(body.error ?? `Character detection failed (${response.status}) at ${url}`);
   }
   return { accepted: true, characterName: character.characterName };
 }
@@ -74,7 +83,8 @@ export async function reportProgressionPull(
   serverId?: string | null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ accepted: boolean; encounterName: string; outcome: string }> {
-  const url = `${serverUrl.replace(/\/$/, "")}/api/progression/ingest`;
+  const baseUrl = normalizeBaseUrl(serverUrl);
+  const url = `${baseUrl}/api/progression/ingest`;
   const encounterId = pull.encounter?.encounterId ?? pull.boss?.npcId ?? "boss-fight";
   const encounterName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
   const outcome = pull.outcome === "kill" ? "kill" : "wipe";
@@ -123,7 +133,7 @@ export async function reportProgressionPull(
 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Progression pull reporting failed (${response.status})`);
+    throw new Error(body.error ?? `Progression pull reporting failed (${response.status}) at ${url}`);
   }
   return { accepted: true, encounterName, outcome };
 }
