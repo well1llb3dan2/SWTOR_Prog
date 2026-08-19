@@ -21,7 +21,7 @@ export interface StreamerStatus {
 
 export interface LogStreamerOptions {
   directory: string;
-  client: IngestClient;
+  client?: IngestClient | null;
   onStatus?: (status: StreamerStatus) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
   onPullCompleted?: (pull: PullSummary, characterName: string, serverId: string | null) => void;
@@ -30,9 +30,9 @@ export interface LogStreamerOptions {
 
 /** Wires the tailer, parser, batcher, analytics, and ingest client into one pipeline. */
 export class LogStreamer {
-  readonly #client: IngestClient;
+  readonly #client: IngestClient | null;
   readonly #tailer: LogTailer;
-  readonly #batcher: EventBatcher;
+  readonly #batcher: EventBatcher | null;
   readonly #onStatus: ((status: StreamerStatus) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
   readonly #onPullCompleted: ((pull: PullSummary, characterName: string, serverId: string | null) => void) | undefined;
@@ -52,16 +52,16 @@ export class LogStreamer {
   #recentTimestamps: number[] = [];
 
   constructor(options: LogStreamerOptions) {
-    this.#client = options.client;
+    this.#client = options.client ?? null;
     this.#onStatus = options.onStatus;
     this.#onCharacterDetected = options.onCharacterDetected;
     this.#onPullCompleted = options.onPullCompleted;
 
-    this.#batcher = new EventBatcher({
+    this.#batcher = this.#client !== null ? new EventBatcher({
       maxEvents: 50,
       maxDelayMs: 1_000,
-      onFlush: (events) => this.#client.send(events),
-    });
+      onFlush: (events) => this.#client?.send(events),
+    }) : null;
 
     this.#tailer = new LogTailer(options.directory, {
       ...options.tailer,
@@ -89,7 +89,7 @@ export class LogStreamer {
 
   stop(): void {
     this.#tailer.stop();
-    this.#batcher.stop();
+    this.#batcher?.stop();
     this.#combat?.end();
     this.#combat = null;
   }
@@ -133,7 +133,7 @@ export class LogStreamer {
     });
 
     const identity = parseLogFileName(file.name);
-    this.#client.restartSession(file.name, identity?.startedAt ?? Date.now());
+    this.#client?.restartSession(file.name, identity?.startedAt ?? Date.now());
     this.#onStatus?.(this.status);
   }
 
@@ -171,7 +171,7 @@ export class LogStreamer {
 
     this.#eventsParsed += events.length;
     this.#track(events.length);
-    this.#batcher.add(events);
+    this.#batcher?.add(events);
     this.#onStatus?.(this.status);
   }
 

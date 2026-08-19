@@ -99,12 +99,10 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
   teardown();
 
   const newest = await newestLogFile(settings.logDirectory);
-  const active = ensureClient();
-  active.connect(newest?.name ?? "pending", newest?.modifiedAt ?? Date.now());
 
   streamer = new LogStreamer({
     directory: settings.logDirectory,
-    client: active,
+    client: null,
     onStatus: (s) =>
       publish({
         fileName: s.fileName,
@@ -142,7 +140,7 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
   });
   streamer.start();
 
-  publish({ mode: "live", replayProgress: null, detail: "Streaming combat logs..." });
+  publish({ mode: "live", connection: "connected", replayProgress: null, detail: "Streaming combat logs..." });
   return { ok: true };
 }
 
