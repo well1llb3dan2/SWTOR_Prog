@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { LogParser, parseLine, parseLogFileName } from "@swtor/parser";
-import { CombatSession, type PullSummary } from "@swtor/analytics";
+import { CombatSession, type LivePullState, type PullSummary } from "@swtor/analytics";
 import type { CombatEvent } from "@swtor/shared";
 import { EventBatcher } from "./batcher.js";
 import type { IngestClient } from "./ingestClient.js";
@@ -79,6 +79,7 @@ export interface LogStreamerOptions {
   directory: string;
   client?: IngestClient | null;
   onStatus?: (status: StreamerStatus) => void;
+  onSnapshot?: (snapshot: LivePullState | null, inCombat: boolean) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
   onPullCompleted?: (pull: PullSummary, characterName: string, serverId: string | null) => void;
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
@@ -90,6 +91,7 @@ export class LogStreamer {
   readonly #tailer: LogTailer;
   readonly #batcher: EventBatcher | null;
   readonly #onStatus: ((status: StreamerStatus) => void) | undefined;
+  readonly #onSnapshot: ((snapshot: LivePullState | null, inCombat: boolean) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
   readonly #onPullCompleted: ((pull: PullSummary, characterName: string, serverId: string | null) => void) | undefined;
 
@@ -107,10 +109,12 @@ export class LogStreamer {
   #activeBoss: string | null = null;
   #lastPullOutcome: string | null = null;
   #recentTimestamps: number[] = [];
+  #lastSnapshotSentAt = 0;
 
   constructor(options: LogStreamerOptions) {
     this.#client = options.client ?? null;
     this.#onStatus = options.onStatus;
+    this.#onSnapshot = options.onSnapshot;
     this.#onCharacterDetected = options.onCharacterDetected;
     this.#onPullCompleted = options.onPullCompleted;
 
@@ -177,16 +181,22 @@ export class LogStreamer {
       onPullStart: (live) => {
         this.#activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull";
         this.#onStatus?.(this.status);
+        this.#onSnapshot?.(live, true);
       },
       onPullEnd: (pull) => {
         this.#activeBoss = null;
-        if (pull.boss?.isLikelyBoss === true || pull.encounter !== null) {
-          const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+        const hasCombatData =
+          pull.boss !== null ||
+          pull.encounter !== null ||
+          (pull.actors && pull.actors.some((a) => a.damage > 0 || a.healing > 0));
+        if (hasCombatData) {
+          const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
           this.#lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
           const characterName = this.#detectedCharacterName ?? "Unknown Character";
           this.#onPullCompleted?.(pull, characterName, this.#serverId);
         }
         this.#onStatus?.(this.status);
+        this.#onSnapshot?.(null, false);
       },
     });
 
@@ -264,6 +274,15 @@ export class LogStreamer {
     this.#track(events.length);
     this.#batcher?.add(events);
     this.#onStatus?.(this.status);
+
+    if (events.length > 0 && this.#onSnapshot && this.#combat) {
+      const now = events[events.length - 1]!.timestamp;
+      if (Date.now() - this.#lastSnapshotSentAt >= 500) {
+        this.#lastSnapshotSentAt = Date.now();
+        const live = this.#combat.current(now);
+        if (live) this.#onSnapshot(live, true);
+      }
+    }
   }
 
   #track(count: number): void {

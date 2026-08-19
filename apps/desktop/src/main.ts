@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 import { CombatSession } from "@swtor/analytics";
-import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportProgressionPull } from "./core/api.js";
+import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportLiveSnapshot, reportProgressionPull } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { newestLogFile } from "./core/logDirectory.js";
 import { ReplaySource } from "./core/replay.js";
@@ -118,6 +118,9 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
         activeBoss: s.activeBoss,
         lastPullOutcome: s.lastPullOutcome,
       }),
+    onSnapshot: (snapshot, inCombat) => {
+      void reportLiveSnapshot(settings.serverUrl, settings.token, snapshot, inCombat);
+    },
     onCharacterDetected: async (character) => {
       try {
         publish({ detectedCharacter: character.characterName, detail: `Syncing character "${character.characterName}" to Merlin...` });
@@ -131,7 +134,7 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
     },
     onPullCompleted: async (pull, characterName, serverId) => {
       try {
-        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
         publish({ detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...` });
         await reportProgressionPull(settings.serverUrl, settings.token, pull, characterName, serverId);
         publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
@@ -166,6 +169,7 @@ async function startReplay(
   let lastPullOutcome: string | null = null;
   let unknownLines = 0;
   let eventsParsed = 0;
+  let lastSnapshotSentAt = 0;
   const recentTimestamps: number[] = [];
 
   const trackRate = (count: number) => {
@@ -214,11 +218,17 @@ async function startReplay(
         activeBoss,
         detail: `[Replay ${speed}x] In combat: ${activeBoss}`,
       });
+      void reportLiveSnapshot(settings.serverUrl, settings.token, live, true);
     },
     onPullEnd: async (pull) => {
       activeBoss = null;
-      if (pull.boss?.isLikelyBoss === true || pull.encounter !== null) {
-        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss";
+      const hasCombatData =
+        pull.boss !== null ||
+        pull.encounter !== null ||
+        (pull.actors && pull.actors.some((a) => a.damage > 0 || a.healing > 0));
+
+      if (hasCombatData) {
+        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
         lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
         publish({
           activeBoss: null,
@@ -242,6 +252,7 @@ async function startReplay(
       } else {
         publish({ activeBoss: null });
       }
+      void reportLiveSnapshot(settings.serverUrl, settings.token, null, false);
     },
   });
   replayCombatSession = combat;
@@ -294,13 +305,23 @@ async function startReplay(
         eventsPerSecond: getRate(),
         unknownLines,
       });
+
+      if (events.length > 0 && Date.now() - lastSnapshotSentAt >= 500) {
+        lastSnapshotSentAt = Date.now();
+        const lastTimestamp = events[events.length - 1]!.timestamp;
+        const live = combat.current(lastTimestamp);
+        if (live) {
+          void reportLiveSnapshot(settings.serverUrl, settings.token, live, true);
+        }
+      }
     },
     onProgress: (progress) => {
       const pct = Math.min(100, Math.round((progress.emitted / progress.total) * 100));
       publish({ replayProgress: pct });
     },
-    onDone: () => {
+    onDone: async () => {
       combat.end();
+      await reportLiveSnapshot(settings.serverUrl, settings.token, null, false);
       publish({
         mode: "idle",
         connection: "idle",
@@ -318,6 +339,8 @@ async function startReplay(
     const msg = loadErr instanceof Error ? loadErr.message : String(loadErr);
     return { ok: false, error: `Failed to load log file: ${msg}` };
   }
+
+  if (total === 0) return { ok: false, error: "No combat events found in that log file." };
 
   if (total === 0) return { ok: false, error: "No combat events found in that log file." };
 

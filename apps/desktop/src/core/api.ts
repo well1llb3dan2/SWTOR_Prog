@@ -1,4 +1,4 @@
-import type { PullSummary } from "@swtor/analytics";
+import type { LivePullState, PullSummary } from "@swtor/analytics";
 
 export interface ApiHealth {
   status: string;
@@ -32,6 +32,34 @@ export function normalizeBaseUrl(serverUrl: string): string {
     url = url.slice(0, -4).replace(/\/+$/, "");
   }
   return url || (process.env.MERLIN_SERVER_URL ?? process.env.SWTOR_SERVER_URL ?? "https://api.infamous-guild.com");
+}
+
+export async function reportLiveSnapshot(
+  serverUrl: string,
+  token: string,
+  snapshot: LivePullState | null,
+  inCombat: boolean,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  if (!token) return;
+  const baseUrl = normalizeBaseUrl(serverUrl);
+  const url = `${baseUrl}/api/progression/live`;
+  try {
+    await fetchImpl(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "x-swtor-prog-token": token,
+      },
+      body: JSON.stringify({
+        snapshot,
+        inCombat,
+      }),
+    });
+  } catch {
+    // Best-effort live snapshot
+  }
 }
 
 export async function reportDetectedCharacter(
