@@ -36,6 +36,7 @@ export async function readInitialLogIdentity(filePath: string): Promise<LogFileI
       for (const line of lines) {
         if (!line.trim()) continue;
         const parsed = parseLine(line, { timestamp: 0, lineNumber: 1 });
+        if (!parsed) continue;
         if (parsed.type === "areaEntered" && parsed.source?.kind === "player") {
           characterName = parsed.source.name.trim();
           playerId = parsed.source.playerId;
