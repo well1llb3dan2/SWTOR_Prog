@@ -1,5 +1,5 @@
 import { isEncounterCleared, resolveEncounter } from "@swtor/game-data";
-import type { CombatEvent, Difficulty, GroupSize, MagnitudeValue } from "@swtor/shared";
+import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import {
   isNpc,
   isPlayer,
@@ -61,6 +61,7 @@ function emptyTotals(actorId: string, name: string): ActorTotals {
     name,
     role: null,
     discipline: null,
+    combatStyle: null,
     damage: 0,
     healing: 0,
     overhealing: 0,
@@ -163,6 +164,7 @@ export class PullAccumulator {
       if (roster !== undefined) {
         totals.role = roster.role;
         totals.discipline = roster.discipline;
+        totals.combatStyle = roster.advancedClass ?? (roster.discipline ? combatStyleForDiscipline(roster.discipline) : null);
       }
       this.#totals.set(id, totals);
     }
@@ -305,16 +307,31 @@ export class PullAccumulator {
   #rates(durationMs: number): ActorRates[] {
     const seconds = Math.max(durationMs, 1) / 1000;
     return [...this.#totals.values()]
-      .map((totals) => ({
-        ...totals,
-        dps: totals.damage / seconds,
-        hps: totals.healing / seconds,
-        dtps: totals.damageTaken / seconds,
-        overhealPercent:
-          totals.healing + totals.overhealing === 0
-            ? 0
-            : (totals.overhealing / (totals.healing + totals.overhealing)) * 100,
-      }))
+      .map((totals) => {
+        let role = totals.role;
+        if (!role) {
+          if (totals.healing > 10000 && totals.healing > totals.damage * 0.5) {
+            role = "healer";
+          } else if (totals.damageTaken > 50000 && totals.damageTaken > totals.damage * 0.8) {
+            role = "tank";
+          } else {
+            role = "dps";
+          }
+        }
+        const combatStyle = totals.combatStyle ?? (totals.discipline ? combatStyleForDiscipline(totals.discipline) : null);
+        return {
+          ...totals,
+          role,
+          combatStyle,
+          dps: totals.damage / seconds,
+          hps: totals.healing / seconds,
+          dtps: totals.damageTaken / seconds,
+          overhealPercent:
+            totals.healing + totals.overhealing === 0
+              ? 0
+              : (totals.overhealing / (totals.healing + totals.overhealing)) * 100,
+        };
+      })
       .sort((a, b) => b.damage - a.damage);
   }
 

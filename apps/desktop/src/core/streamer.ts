@@ -76,8 +76,7 @@ export interface StreamerStatus {
 }
 
 export interface LogStreamerOptions {
-  directory: string;
-  client?: IngestClient | null;
+  directory?: string;
   onStatus?: (status: StreamerStatus) => void;
   onSnapshot?: (snapshot: LivePullState | null, inCombat: boolean) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
@@ -85,11 +84,10 @@ export interface LogStreamerOptions {
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
 }
 
-/** Wires the tailer, parser, batcher, analytics, and ingest client into one pipeline. */
+/** Wires the tailer, parser, analytics, and Merlin progression uplink into one pipeline. */
 export class LogStreamer {
-  readonly #client: IngestClient | null;
-  readonly #tailer: LogTailer;
-  readonly #batcher: EventBatcher | null;
+  readonly #options: LogStreamerOptions;
+  readonly #tailer: LogTailer | null;
   readonly #onStatus: ((status: StreamerStatus) => void) | undefined;
   readonly #onSnapshot: ((snapshot: LivePullState | null, inCombat: boolean) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
@@ -97,6 +95,7 @@ export class LogStreamer {
 
   #parser: LogParser | null = null;
   #combat: CombatSession | null = null;
+  #replay: ReplaySource | null = null;
   #fileName: string | null = null;
   #eventsParsed = 0;
   #unknownLines = 0;
@@ -112,23 +111,19 @@ export class LogStreamer {
   #lastSnapshotSentAt = 0;
 
   constructor(options: LogStreamerOptions) {
-    this.#client = options.client ?? null;
+    this.#options = options;
     this.#onStatus = options.onStatus;
     this.#onSnapshot = options.onSnapshot;
     this.#onCharacterDetected = options.onCharacterDetected;
     this.#onPullCompleted = options.onPullCompleted;
 
-    this.#batcher = this.#client !== null ? new EventBatcher({
-      maxEvents: 50,
-      maxDelayMs: 1_000,
-      onFlush: (events) => this.#client?.send(events),
-    }) : null;
-
-    this.#tailer = new LogTailer(options.directory, {
-      ...options.tailer,
-      onFileChange: (file) => this.#onFileChange(file),
-      onLines: (lines) => this.#onLines(lines),
-    });
+    this.#tailer = options.directory
+      ? new LogTailer(options.directory, {
+          ...options.tailer,
+          onFileChange: (file) => this.#onFileChange(file),
+          onLines: (lines) => this.#onLines(lines),
+        })
+      : null;
   }
 
   get status(): StreamerStatus {
@@ -145,18 +140,87 @@ export class LogStreamer {
   }
 
   start(): void {
-    this.#tailer.start();
+    this.startLive();
+  }
+
+  startLive(): void {
+    this.stop();
+    this.#tailer?.start();
+  }
+
+  async startReplay(
+    filePath: string,
+    speed: number,
+    onProgress?: (progress: { emitted: number; total: number; percent: number }) => void,
+    onDone?: () => void,
+  ): Promise<{ ok: boolean; totalEvents?: number; error?: string }> {
+    this.stop();
+
+    this.#resetSession(filePath);
+
+    // Read initial identity
+    const initialIdentity = await readInitialLogIdentity(filePath);
+    if (initialIdentity) {
+      this.#localPlayerId = initialIdentity.playerId;
+      this.#detectedCharacterName = initialIdentity.characterName;
+      this.#serverId = initialIdentity.serverId ?? null;
+      this.#discipline = initialIdentity.discipline ?? null;
+      this.#zone = initialIdentity.zone ?? null;
+      this.#characterReported = true;
+      this.#onCharacterDetected?.({
+        characterName: initialIdentity.characterName,
+        serverId: this.#serverId,
+        discipline: this.#discipline,
+        occurredAt: new Date().toISOString(),
+      });
+    }
+
+    this.#initCombatSession();
+
+    this.#replay = new ReplaySource({
+      filePath,
+      speed: speed > 0 ? speed : 4,
+      tickMs: 50,
+      onEvents: (events) => {
+        this.#processEvents(events);
+      },
+      onProgress: (p) => {
+        const percent = Math.min(100, Math.round((p.emitted / p.total) * 100));
+        onProgress?.({ emitted: p.emitted, total: p.total, percent });
+      },
+      onDone: () => {
+        this.#combat?.end();
+        this.#onSnapshot?.(null, false);
+        this.#activeBoss = null;
+        this.#onStatus?.(this.status);
+        onDone?.();
+      },
+    });
+
+    try {
+      const totalEvents = await this.#replay.load();
+      if (totalEvents === 0) return { ok: false, error: "No combat events found in that log file." };
+      this.#fileName = this.#replay.fileName;
+      this.#replay.start();
+      this.#onStatus?.(this.status);
+      return { ok: true, totalEvents };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: `Failed to load log file: ${message}` };
+    }
   }
 
   stop(): void {
-    this.#tailer.stop();
-    this.#batcher?.stop();
+    this.#tailer?.stop();
+    this.#replay?.stop();
+    this.#replay = null;
     this.#combat?.end();
     this.#combat = null;
+    this.#onSnapshot?.(null, false);
   }
 
-  async #onFileChange(file: LogFileInfo | null): Promise<void> {
-    this.#fileName = file?.name ?? null;
+  #resetSession(fileName: string | null) {
+    this.#fileName = fileName;
     this.#zone = null;
     this.#serverId = null;
     this.#discipline = null;
@@ -167,16 +231,11 @@ export class LogStreamer {
     this.#lastPullOutcome = null;
     this.#eventsParsed = 0;
     this.#unknownLines = 0;
+    this.#recentTimestamps = [];
+  }
 
+  #initCombatSession() {
     this.#combat?.end();
-    this.#combat = null;
-
-    if (file === null) {
-      this.#parser = null;
-      return;
-    }
-
-    this.#parser = new LogParser({ fileName: file.name });
     this.#combat = new CombatSession({
       onPullStart: (live) => {
         this.#activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull";
@@ -199,11 +258,23 @@ export class LogStreamer {
         this.#onSnapshot?.(null, false);
       },
     });
+  }
+
+  async #onFileChange(file: LogFileInfo | null): Promise<void> {
+    this.#resetSession(file?.name ?? null);
+    this.#combat?.end();
+    this.#combat = null;
+
+    if (file === null) {
+      this.#parser = null;
+      return;
+    }
+
+    this.#parser = new LogParser({ fileName: file.name });
+    this.#initCombatSession();
 
     const identity = parseLogFileName(file.name);
-    this.#client?.restartSession(file.name, identity?.startedAt ?? Date.now());
-
-    // Always read the beginning of the log file to definitively identify the local player
+    // Read the beginning of the log file to identify the local player
     const initialIdentity = await readInitialLogIdentity(file.path);
     if (initialIdentity) {
       this.#localPlayerId = initialIdentity.playerId;
@@ -225,11 +296,16 @@ export class LogStreamer {
 
   #onLines(lines: string[]): void {
     if (this.#parser === null) return;
-
     const events: CombatEvent[] = [];
     for (const line of lines) {
       const event = this.#parser.push(line);
-      if (event === null) continue;
+      if (event !== null) events.push(event);
+    }
+    this.#processEvents(events);
+  }
+
+  #processEvents(events: CombatEvent[]): void {
+    for (const event of events) {
       if (event.type === "unknown") this.#unknownLines += 1;
 
       if (event.type === "areaEntered") {
@@ -267,12 +343,10 @@ export class LogStreamer {
       }
 
       this.#combat?.push(event);
-      events.push(event);
     }
 
     this.#eventsParsed += events.length;
     this.#track(events.length);
-    this.#batcher?.add(events);
     this.#onStatus?.(this.status);
 
     if (events.length > 0 && this.#onSnapshot && this.#combat) {

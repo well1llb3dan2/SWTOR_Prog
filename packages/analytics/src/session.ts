@@ -83,6 +83,20 @@ export class CombatSession {
   }
 
   push(event: CombatEvent): void {
+    // Record any discovered player in the session roster
+    for (const actor of [event.source, event.target]) {
+      if (actor && actor.kind === "player" && !this.#roster.has(actor.playerId)) {
+        this.#roster.set(actor.playerId, {
+          playerId: actor.playerId,
+          serverId: this.#serverId,
+          name: actor.name,
+          advancedClass: null,
+          discipline: null,
+          role: null,
+        });
+      }
+    }
+
     switch (event.type) {
       case "areaEntered":
         // Zoning always ends a fight, and never begins one.

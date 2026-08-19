@@ -1,11 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import { CombatSession } from "@swtor/analytics";
 import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportLiveSnapshot, reportProgressionPull } from "./core/api.js";
-import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
-import { newestLogFile } from "./core/logDirectory.js";
-import { ReplaySource } from "./core/replay.js";
 import {
   loadSettings,
   redactSettings,
@@ -13,12 +9,14 @@ import {
   settingsPath,
   type DesktopSettings,
 } from "./core/settings.js";
-import { LogStreamer, readInitialLogIdentity } from "./core/streamer.js";
+import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
 const CLIENT_VERSION = "0.1.7";
 const distDir = __dirname;
+
+export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
 interface AppStatus {
   mode: "idle" | "live" | "replay";
@@ -41,10 +39,7 @@ interface AppStatus {
 
 let window: BrowserWindow | null = null;
 let settings: DesktopSettings;
-let client: IngestClient | null = null;
 let streamer: LogStreamer | null = null;
-let replay: ReplaySource | null = null;
-let replayCombatSession: CombatSession | null = null;
 
 const status: AppStatus = {
   mode: "idle",
@@ -67,46 +62,13 @@ const status: AppStatus = {
 
 function publish(patch: Partial<AppStatus> = {}): void {
   Object.assign(status, patch);
-  if (client !== null) {
-    status.queuedEvents = client.queuedEvents;
-    status.droppedEvents = client.droppedEvents;
-    status.sessionId = client.sessionId;
-  }
   window?.webContents.send("status", status);
 }
 
-function ensureClient(): IngestClient {
-  if (client !== null) return client;
-  client = new IngestClient({
-    serverUrl: settings.serverUrl,
-    token: settings.token,
-    clientVersion: CLIENT_VERSION,
-    onState: (connection, detail) => publish({ connection, detail: detail ?? null }),
-    onReport: (reportCode) => publish({ reportCode }),
-  });
-  return client;
-}
-
-function teardown(): void {
-  streamer?.stop();
-  streamer = null;
-  replay?.stop();
-  replay = null;
-  replayCombatSession?.end();
-  replayCombatSession = null;
-  client?.disconnect();
-  client = null;
-}
-
-async function startLive(): Promise<{ ok: boolean; error?: string }> {
-  if (settings.token.length === 0) return { ok: false, error: "Please click 'Sign in with Discord' first to link your account to Merlin." };
-  teardown();
-
-  const newest = await newestLogFile(settings.logDirectory);
-
+function getStreamer(): LogStreamer {
+  if (streamer !== null) return streamer;
   streamer = new LogStreamer({
     directory: settings.logDirectory,
-    client: null,
     onStatus: (s) =>
       publish({
         fileName: s.fileName,
@@ -145,9 +107,22 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
       }
     },
   });
-  streamer.start();
+  return streamer;
+}
 
-  publish({ mode: "live", connection: "connected", replayProgress: null, detail: "Streaming combat logs..." });
+function teardown(): void {
+  streamer?.stop();
+  streamer = null;
+}
+
+async function startLive(): Promise<{ ok: boolean; error?: string }> {
+  if (settings.token.length === 0) return { ok: false, error: "Please click 'Sign in with Discord' first to link your account to Merlin." };
+  teardown();
+
+  const active = getStreamer();
+  active.startLive();
+
+  publish({ mode: "live", connection: "connected", replayProgress: null, detail: "Streaming combat logs live..." });
   return { ok: true };
 }
 
@@ -160,206 +135,21 @@ async function startReplay(
   }
   teardown();
 
-  let detectedCharacterName: string | null = null;
-  let serverId: string | null = null;
-  let discipline: string | null = null;
-  let zone: string | null = null;
-  let localPlayerId: string | null = null;
-  let activeBoss: string | null = null;
-  let lastPullOutcome: string | null = null;
-  let unknownLines = 0;
-  let eventsParsed = 0;
-  let lastSnapshotSentAt = 0;
-  const recentTimestamps: number[] = [];
+  const active = getStreamer();
+  publish({ mode: "replay", connection: "connected", replayProgress: 0, detail: `Starting replay at ${speed}x...` });
 
-  const trackRate = (count: number) => {
-    const now = Date.now();
-    for (let i = 0; i < count; i += 1) recentTimestamps.push(now);
-    const cutoff = now - 5_000;
-    while (recentTimestamps.length > 0 && recentTimestamps[0]! < cutoff) {
-      recentTimestamps.shift();
-    }
-  };
-
-  const getRate = () => Math.round(recentTimestamps.length / 5);
-
-  // Read initial identity from header
-  const initialIdentity = await readInitialLogIdentity(filePath);
-  if (initialIdentity) {
-    localPlayerId = initialIdentity.playerId;
-    detectedCharacterName = initialIdentity.characterName;
-    serverId = initialIdentity.serverId ?? null;
-    discipline = initialIdentity.discipline ?? null;
-    zone = initialIdentity.zone ?? null;
-
-    publish({
-      detectedCharacter: detectedCharacterName,
-      zone,
-      detail: `Syncing character "${detectedCharacterName}" to Merlin...`,
-    });
-
-    try {
-      await reportDetectedCharacter(settings.serverUrl, settings.token, {
-        characterName: detectedCharacterName,
-        serverId,
-        discipline,
-        occurredAt: new Date().toISOString(),
-      });
-      publish({ detail: `Character "${detectedCharacterName}" synced to Merlin.` });
-    } catch (err) {
-      console.warn("Character sync to Merlin failed during replay:", err);
-    }
-  }
-
-  const combat = new CombatSession({
-    onPullStart: (live) => {
-      activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull";
-      publish({
-        activeBoss,
-        detail: `[Replay ${speed}x] In combat: ${activeBoss}`,
-      });
-      void reportLiveSnapshot(settings.serverUrl, settings.token, live, true);
-    },
-    onPullEnd: async (pull) => {
-      activeBoss = null;
-      const hasCombatData =
-        pull.boss !== null ||
-        pull.encounter !== null ||
-        (pull.actors && pull.actors.some((a) => a.damage > 0 || a.healing > 0));
-
-      if (hasCombatData) {
-        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
-        lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
-        publish({
-          activeBoss: null,
-          lastPullOutcome,
-          detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...`,
-        });
-        try {
-          await reportProgressionPull(
-            settings.serverUrl,
-            settings.token,
-            pull,
-            detectedCharacterName ?? "Unknown Character",
-            serverId,
-          );
-          publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
-          publish({ detail: `Pull sync to Merlin failed: ${message}` });
-          console.warn("Pull reporting to Merlin API encountered:", err);
-        }
-      } else {
-        publish({ activeBoss: null });
-      }
-      void reportLiveSnapshot(settings.serverUrl, settings.token, null, false);
-    },
-  });
-  replayCombatSession = combat;
-
-  replay = new ReplaySource({
+  const result = await active.startReplay(
     filePath,
-    speed: speed > 0 ? speed : 4,
-    tickMs: 50,
-    onEvents: (events) => {
-      for (const event of events) {
-        if (event.type === "unknown") unknownLines += 1;
-
-        if (event.type === "areaEntered") {
-          if (localPlayerId === null || (event.source?.kind === "player" && event.source.playerId === localPlayerId)) {
-            zone = event.zone.name;
-            if (event.serverId) serverId = event.serverId;
-            if (event.source?.kind === "player") {
-              localPlayerId = event.source.playerId;
-              detectedCharacterName = event.source.name.trim();
-            }
-          }
-        }
-
-        if (event.type === "disciplineChanged") {
-          if (event.source?.kind === "player" && (localPlayerId === null || event.source.playerId === localPlayerId)) {
-            localPlayerId = event.source.playerId;
-            detectedCharacterName = event.source.name.trim();
-            discipline = event.discipline.name;
-          }
-        }
-
-        if (localPlayerId === null && event.source?.kind === "player" && (event.type === "areaEntered" || event.type === "disciplineChanged")) {
-          localPlayerId = event.source.playerId;
-          detectedCharacterName = event.source.name.trim();
-        }
-
-        combat.push(event);
-      }
-
-      eventsParsed += events.length;
-      trackRate(events.length);
-
-      publish({
-        mode: "replay",
-        connection: "connected",
-        fileName: replay?.fileName ?? filePath,
-        zone,
-        detectedCharacter: detectedCharacterName,
-        eventsParsed,
-        eventsPerSecond: getRate(),
-        unknownLines,
-      });
-
-      if (events.length > 0 && Date.now() - lastSnapshotSentAt >= 500) {
-        lastSnapshotSentAt = Date.now();
-        const lastTimestamp = events[events.length - 1]!.timestamp;
-        const live = combat.current(lastTimestamp);
-        if (live) {
-          void reportLiveSnapshot(settings.serverUrl, settings.token, live, true);
-        }
-      }
+    speed,
+    (progress) => {
+      publish({ mode: "replay", connection: "connected", replayProgress: progress.percent });
     },
-    onProgress: (progress) => {
-      const pct = Math.min(100, Math.round((progress.emitted / progress.total) * 100));
-      publish({ replayProgress: pct });
+    () => {
+      publish({ mode: "idle", connection: "idle", activeBoss: null, replayProgress: 100, detail: "Replay simulation complete." });
     },
-    onDone: async () => {
-      combat.end();
-      await reportLiveSnapshot(settings.serverUrl, settings.token, null, false);
-      publish({
-        mode: "idle",
-        connection: "idle",
-        activeBoss: null,
-        replayProgress: 100,
-        detail: `Replay completed (${eventsParsed.toLocaleString()} events).`,
-      });
-    },
-  });
+  );
 
-  let total = 0;
-  try {
-    total = await replay.load();
-  } catch (loadErr) {
-    const msg = loadErr instanceof Error ? loadErr.message : String(loadErr);
-    return { ok: false, error: `Failed to load log file: ${msg}` };
-  }
-
-  if (total === 0) return { ok: false, error: "No combat events found in that log file." };
-
-  if (total === 0) return { ok: false, error: "No combat events found in that log file." };
-
-  replay.start();
-
-  publish({
-    mode: "replay",
-    connection: "connected",
-    fileName: replay.fileName,
-    zone,
-    detectedCharacter: detectedCharacterName,
-    activeBoss: null,
-    lastPullOutcome: null,
-    eventsParsed: 0,
-    replayProgress: 0,
-    detail: `Replaying ${replay.fileName} at ${speed}x speed...`,
-  });
-
-  return { ok: true };
+  return result;
 }
 
 function createWindow(): void {

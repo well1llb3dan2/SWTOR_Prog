@@ -69,6 +69,69 @@ const DPS_DISCIPLINES = [
   "Virulence",
 ] as const;
 
+export const DISCIPLINE_COMBAT_STYLES: ReadonlyMap<string, string> = new Map<string, string>([
+  // Jedi Guardian / Sith Juggernaut
+  ["Defense", "Jedi Guardian"],
+  ["Vigilance", "Jedi Guardian"],
+  ["Focus", "Jedi Guardian"],
+  ["Immortal", "Sith Juggernaut"],
+  ["Vengeance", "Sith Juggernaut"],
+  ["Rage", "Sith Juggernaut"],
+  // Jedi Sentinel / Sith Marauder
+  ["Watchman", "Jedi Sentinel"],
+  ["Combat", "Jedi Sentinel"],
+  ["Concentration", "Jedi Sentinel"],
+  ["Annihilation", "Sith Marauder"],
+  ["Carnage", "Sith Marauder"],
+  ["Fury", "Sith Marauder"],
+  // Jedi Shadow / Sith Assassin
+  ["Kinetic Combat", "Jedi Shadow"],
+  ["Infiltration", "Jedi Shadow"],
+  ["Serenity", "Jedi Shadow"],
+  ["Darkness", "Sith Assassin"],
+  ["Deception", "Sith Assassin"],
+  ["Hatred", "Sith Assassin"],
+  // Jedi Sage / Sith Sorcerer
+  ["Seer", "Jedi Sage"],
+  ["Telekinetics", "Jedi Sage"],
+  ["Balance", "Jedi Sage"],
+  ["Corruption", "Sith Sorcerer"],
+  ["Lightning", "Sith Sorcerer"],
+  ["Madness", "Sith Sorcerer"],
+  // Trooper Commando / Bounty Hunter Mercenary
+  ["Combat Medic", "Commando"],
+  ["Gunnery", "Commando"],
+  ["Assault Specialist", "Commando"],
+  ["Bodyguard", "Mercenary"],
+  ["Arsenal", "Mercenary"],
+  ["Innovative Ordnance", "Mercenary"],
+  // Trooper Vanguard / Bounty Hunter Powertech
+  ["Shield Specialist", "Vanguard"],
+  ["Tactics", "Vanguard"],
+  ["Plasmatech", "Vanguard"],
+  ["Shield Tech", "Powertech"],
+  ["Advanced Prototype", "Powertech"],
+  ["Pyrotech", "Powertech"],
+  // Smuggler Scoundrel / Imperial Agent Operative
+  ["Sawbones", "Scoundrel"],
+  ["Scrapper", "Scoundrel"],
+  ["Ruffian", "Scoundrel"],
+  ["Medicine", "Operative"],
+  ["Concealment", "Operative"],
+  ["Lethality", "Operative"],
+  // Smuggler Gunslinger / Imperial Agent Sniper
+  ["Sharpshooter", "Gunslinger"],
+  ["Saboteur", "Gunslinger"],
+  ["Dirty Fighting", "Gunslinger"],
+  ["Marksmanship", "Sniper"],
+  ["Engineering", "Sniper"],
+  ["Virulence", "Sniper"],
+]);
+
+export function combatStyleForDiscipline(discipline: string): string | null {
+  return DISCIPLINE_COMBAT_STYLES.get(discipline.trim()) ?? null;
+}
+
 export const DISCIPLINE_ROLES: ReadonlyMap<string, Role> = new Map<string, Role>([
   ...TANK_DISCIPLINES.map((d) => [d, "tank"] as const),
   ...HEALER_DISCIPLINES.map((d) => [d, "healer"] as const),

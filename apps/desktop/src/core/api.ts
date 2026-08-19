@@ -45,6 +45,57 @@ export async function reportLiveSnapshot(
   const baseUrl = normalizeBaseUrl(serverUrl);
   const url = `${baseUrl}/api/progression/live`;
   try {
+    const formattedSnapshot = snapshot
+      ? {
+          elapsedMs: snapshot.elapsedMs,
+          zone: snapshot.zone,
+          difficulty: snapshot.difficulty,
+          boss: snapshot.boss
+            ? {
+                name: snapshot.boss.name,
+                hp: snapshot.boss.hp,
+                maxHp: snapshot.boss.maxHp,
+                hpPercent: snapshot.boss.hpPercent,
+                isLikelyBoss: snapshot.boss.isLikelyBoss,
+              }
+            : snapshot.encounter
+              ? {
+                  name: snapshot.encounter.encounterName,
+                  hp: null,
+                  maxHp: 10000000,
+                  hpPercent: null,
+                  isLikelyBoss: true,
+                }
+              : null,
+          encounter: snapshot.encounter
+            ? {
+                encounterId: snapshot.encounter.encounterId,
+                encounterName: snapshot.encounter.encounterName,
+                operationId: snapshot.encounter.operationId,
+                operationName: snapshot.encounter.operationName,
+              }
+            : null,
+          actors: (snapshot.actors ?? []).map((a) => ({
+            actorId: a.actorId,
+            name: a.name,
+            role: a.role,
+            discipline: a.discipline,
+            combatStyle: a.combatStyle,
+            dps: Math.round(a.dps),
+            hps: Math.round(a.hps),
+            dtps: Math.round(a.dtps),
+            damage: a.damage,
+            totalDamage: a.damage,
+            healing: a.healing,
+            totalHealing: a.healing,
+            damageTaken: a.damageTaken,
+            totalDamageTaken: a.damageTaken,
+            overhealPercent: Math.round(a.overhealPercent),
+            deaths: a.deaths,
+          })),
+        }
+      : null;
+
     await fetchImpl(url, {
       method: "POST",
       headers: {
@@ -53,7 +104,7 @@ export async function reportLiveSnapshot(
         "x-swtor-prog-token": token,
       },
       body: JSON.stringify({
-        snapshot,
+        snapshot: formattedSnapshot,
         inCombat,
       }),
     });

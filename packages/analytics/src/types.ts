@@ -51,6 +51,7 @@ export interface ActorTotals {
   name: string;
   role: Role | null;
   discipline: string | null;
+  combatStyle?: string | null;
   damage: number;
   healing: number;
   /** Raw healing minus effective healing. */
