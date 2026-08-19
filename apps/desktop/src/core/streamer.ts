@@ -45,10 +45,11 @@ export class LogStreamer {
   #zone: string | null = null;
   #serverId: string | null = null;
   #discipline: string | null = null;
+  #localPlayerId: string | null = null;
   #detectedCharacterName: string | null = null;
+  #characterReported = false;
   #activeBoss: string | null = null;
   #lastPullOutcome: string | null = null;
-  #seenCharacters = new Set<string>();
   #recentTimestamps: number[] = [];
 
   constructor(options: LogStreamerOptions) {
@@ -99,10 +100,11 @@ export class LogStreamer {
     this.#zone = null;
     this.#serverId = null;
     this.#discipline = null;
+    this.#localPlayerId = null;
     this.#detectedCharacterName = null;
+    this.#characterReported = false;
     this.#activeBoss = null;
     this.#lastPullOutcome = null;
-    this.#seenCharacters.clear();
     this.#eventsParsed = 0;
     this.#unknownLines = 0;
 
@@ -145,26 +147,39 @@ export class LogStreamer {
       const event = this.#parser.push(line);
       if (event === null) continue;
       if (event.type === "unknown") this.#unknownLines += 1;
+
       if (event.type === "areaEntered") {
         this.#zone = event.zone.name;
         if (event.serverId) this.#serverId = event.serverId;
-      }
-      if (event.type === "disciplineChanged") {
-        this.#discipline = event.discipline.name;
-      }
-      if (event.source?.kind === "player" && event.source.name) {
-        const charName = event.source.name.trim();
-        if (charName.length > 0 && !this.#seenCharacters.has(charName)) {
-          this.#seenCharacters.add(charName);
-          this.#detectedCharacterName = charName;
-          this.#onCharacterDetected?.({
-            characterName: charName,
-            serverId: this.#serverId,
-            discipline: this.#discipline,
-            occurredAt: new Date(event.timestamp || Date.now()).toISOString(),
-          });
+        if (event.source?.kind === "player") {
+          this.#localPlayerId = event.source.playerId;
+          this.#detectedCharacterName = event.source.name.trim();
         }
       }
+
+      if (this.#localPlayerId === null && event.source?.kind === "player" && event.source.name.trim().length > 0) {
+        this.#localPlayerId = event.source.playerId;
+        this.#detectedCharacterName = event.source.name.trim();
+      }
+
+      if (event.type === "disciplineChanged") {
+        if (event.source?.kind === "player" && (this.#localPlayerId === null || event.source.playerId === this.#localPlayerId)) {
+          this.#localPlayerId = event.source.playerId;
+          this.#detectedCharacterName = event.source.name.trim();
+          this.#discipline = event.discipline.name;
+        }
+      }
+
+      if (this.#detectedCharacterName && !this.#characterReported) {
+        this.#characterReported = true;
+        this.#onCharacterDetected?.({
+          characterName: this.#detectedCharacterName,
+          serverId: this.#serverId,
+          discipline: this.#discipline,
+          occurredAt: new Date(event.timestamp || Date.now()).toISOString(),
+        });
+      }
+
       this.#combat?.push(event);
       events.push(event);
     }

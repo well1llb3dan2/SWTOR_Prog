@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBatcher } from "../src/core/batcher.js";
 import { OfflineQueue } from "../src/core/offlineQueue.js";
 import { ReplaySource } from "../src/core/replay.js";
+import { LogStreamer } from "../src/core/streamer.js";
 import { defaultSettings, redactSettings } from "../src/core/settings.js";
 
 const temporaryDirs: string[] = [];
@@ -216,5 +217,44 @@ describe("ReplaySource", () => {
 
     for (let i = 0; i < 50 && onDone.mock.calls.length === 0; i += 1) replay.tick();
     expect(onDone).toHaveBeenCalled();
+  });
+});
+
+describe("LogStreamer local player isolation", () => {
+  it("only reports the local player from AreaEntered and ignores other group members in the stream", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "swtor-streamer-"));
+    temporaryDirs.push(dir);
+    const fileName = "combat_2026-08-18_20_00_00_000000.txt";
+    const logPath = join(dir, fileName);
+
+    const detected: Array<{ characterName: string }> = [];
+    const streamer = new LogStreamer({
+      directory: dir,
+      client: null,
+      onCharacterDetected: (char) => detected.push(char),
+      tailer: { pollIntervalMs: 10, startAtEnd: false },
+    });
+
+    const lines = [
+      // Line 1: Local player zones in
+      `[20:00:00.000] [@ValeRook#111111111111111|(0,0,0,0)|(1/1)] [] [] [AreaEntered {836045448953664}: Republic Fleet {137438989514}] (he3000)`,
+      // Line 2: Discipline of local player
+      `[20:00:00.000] [@ValeRook#111111111111111|(0,0,0,0)|(1/1)] [] [] [DisciplineChanged {836045448953665}: Guardian {16141180228828243745}/Vigilance {2031339142381578}]`,
+      // Line 3: Group leader / member casts buff on local player
+      `[20:00:05.000] [@GroupLeader#999999999999999|(0,0,0,0)|(1/1)] [@ValeRook#111111111111111|(0,0,0,0)|(1/1)] [Force Valor {4503101411164160}] [ApplyEffect {836045448945477}: Force Might {4503101411164466}]`,
+      // Line 4: Another party member acts
+      `[20:00:10.000] [@PartyMember#888888888888888|(0,0,0,0)|(1/1)] [=] [Sprint {810670782152704}] [ApplyEffect {836045448945477}: Sprint {810670782152704}]`,
+    ];
+
+    await writeFile(logPath, lines.join("\n") + "\n", "utf8");
+
+    streamer.start();
+
+    // Wait for tailer polling
+    await new Promise((r) => setTimeout(r, 60));
+    streamer.stop();
+
+    expect(detected).toHaveLength(1);
+    expect(detected[0]!.characterName).toBe("ValeRook");
   });
 });
