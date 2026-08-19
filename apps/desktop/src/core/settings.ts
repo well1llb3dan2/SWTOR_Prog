@@ -12,7 +12,7 @@ export interface DesktopSettings {
 
 export function defaultSettings(): DesktopSettings {
   return {
-    serverUrl: "https://infamous-command.onrender.com",
+    serverUrl: process.env.MERLIN_SERVER_URL ?? process.env.SWTOR_SERVER_URL ?? "https://infamous-command.onrender.com",
     token: "",
     logDirectory: defaultLogDirectory(),
     autoStart: false,
@@ -20,14 +20,20 @@ export function defaultSettings(): DesktopSettings {
 }
 
 export async function loadSettings(path: string): Promise<DesktopSettings> {
+  const defaults = defaultSettings();
   const raw = await readFile(path, "utf8").catch(() => null);
-  if (raw === null) return defaultSettings();
+  if (raw === null) return defaults;
 
   try {
     const parsed = JSON.parse(raw) as Partial<DesktopSettings>;
-    return { ...defaultSettings(), ...parsed };
+    // Migrate any legacy default domain or apply ENV override if configured
+    const serverUrl = (parsed.serverUrl === "https://swtor-api.onrender.com" || !parsed.serverUrl)
+      ? defaults.serverUrl
+      : parsed.serverUrl;
+
+    return { ...defaults, ...parsed, serverUrl };
   } catch {
-    return defaultSettings();
+    return defaults;
   }
 }
 
