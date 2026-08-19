@@ -1,0 +1,51 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - master
+      - main
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/**'
+      - '.github/workflows/release-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop client
+        run: |
+          cd apps/desktop
+          pnpm build
+        shell: bash
+
+      - name: Package & Publish Installer on GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd apps/desktop
+          npx electron-builder --config electron-builder.yml --publish always
+        shell: bash

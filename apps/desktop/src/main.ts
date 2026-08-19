@@ -16,7 +16,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.1.0";
+const CLIENT_VERSION = "0.1.6";
 const distDir = __dirname;
 
 interface AppStatus {
