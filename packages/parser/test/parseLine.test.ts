@@ -78,6 +78,7 @@ describe("parseLine", () => {
     expect(event).toMatchObject({
       type: "areaEntered",
       zone: { name: "Darvannis", id: "137438993037" },
+      serverId: "he3000",
       groupSize: 8,
       difficulty: "Veteran",
       logVersion: "v7.0.0b",

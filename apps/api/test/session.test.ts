@@ -56,6 +56,7 @@ const areaEntered = (t: number): CombatEvent => ({
   type: "areaEntered",
   source: PLAYER,
   zone: { name: "Darvannis", id: "137438993037" },
+  serverId: "he3000",
   groupSize: 8,
   difficulty: "Veteran",
   logVersion: "v7.0.0b",

@@ -88,6 +88,7 @@ export const combatEventSchema = z.discriminatedUnion("type", [
   event("fallingDamage", { amount: z.number() }),
   event("areaEntered", {
     zone: namedEntitySchema,
+    serverId: z.string().max(32).nullable(),
     groupSize: z.union([z.literal(4), z.literal(8), z.literal(16)]).nullable(),
     difficulty: z.enum(["Story", "Veteran", "Master"]).nullable(),
     logVersion: z.string().max(32).nullable(),

@@ -395,6 +395,7 @@ describe("character linking", () => {
         ability: null,
         threat: null,
         zone: { name: "Darvannis", id: "137438993037" },
+        serverId: "he3000",
         groupSize: 8,
         difficulty: "Veteran",
         logVersion: "v7.0.0b",
@@ -456,6 +457,7 @@ describe("character linking", () => {
         ability: null,
         threat: null,
         zone: { name: "Darvannis", id: "137438993037" },
+        serverId: "he3000",
         groupSize: 8,
         difficulty: "Veteran",
         logVersion: "v7.0.0b",
@@ -591,6 +593,43 @@ describe("character linking", () => {
       payload: { playerId: character.playerId },
     });
     expect(response.statusCode).toBe(409);
+  });
+
+  it("treats same player IDs on different servers as different characters", async () => {
+    const cookie = await signIn();
+    const samePlayerDifferentServer = {
+      playerId: "shared-player-id",
+      name: "Twistle",
+      discipline: "Watchman",
+      role: "dps" as const,
+      serverId: "he3000",
+    };
+    const samePlayerOtherServer = {
+      ...samePlayerDifferentServer,
+      serverId: "he3001",
+    };
+
+    await accounts.upsertUser({
+      guildId: config.defaultGuildId,
+      discordId: "someone-else",
+      username: "other",
+      globalName: null,
+      avatar: null,
+      roles: [],
+      isMember: true,
+      isModerator: false,
+    });
+    await accounts.linkCharacter("someone-else", { ...samePlayerDifferentServer, linkedAt: new Date() });
+
+    accounts.setSeenCharacters("424242", [samePlayerOtherServer]);
+    const response = await server.app.inject({
+      method: "POST",
+      url: "/api/me/characters",
+      headers: { cookie },
+      payload: { playerId: samePlayerOtherServer.playerId, serverId: samePlayerOtherServer.serverId },
+    });
+
+    expect(response.statusCode).toBe(200);
   });
 });
 

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import { fetchApiHealth, fetchApiReports } from "./core/api.js";
+import { fetchApiHealth, fetchApiReports, reportDetectedCharacter } from "./core/api.js";
 import { IngestClient, type ConnectionState } from "./core/ingestClient.js";
 import { newestLogFile } from "./core/logDirectory.js";
 import { ReplaySource } from "./core/replay.js";
@@ -27,6 +27,7 @@ interface AppStatus {
   reportCode: string | null;
   fileName: string | null;
   zone: string | null;
+  detectedCharacter: string | null;
   eventsParsed: number;
   eventsPerSecond: number;
   unknownLines: number;
@@ -49,6 +50,7 @@ const status: AppStatus = {
   reportCode: null,
   fileName: null,
   zone: null,
+  detectedCharacter: null,
   eventsParsed: 0,
   eventsPerSecond: 0,
   unknownLines: 0,
@@ -89,7 +91,7 @@ function teardown(): void {
 }
 
 async function startLive(): Promise<{ ok: boolean; error?: string }> {
-  if (settings.token.length === 0) return { ok: false, error: "Set an ingest token first" };
+  if (settings.token.length === 0) return { ok: false, error: "Set an ingest token or sign in with Discord first" };
   teardown();
 
   const newest = await newestLogFile(settings.logDirectory);
@@ -106,7 +108,16 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
         eventsParsed: s.eventsParsed,
         eventsPerSecond: s.eventsPerSecond,
         unknownLines: s.unknownLines,
+        detectedCharacter: s.detectedCharacter,
       }),
+    onCharacterDetected: async (character) => {
+      try {
+        publish({ detectedCharacter: character.characterName });
+        await reportDetectedCharacter(settings.serverUrl, settings.token, character);
+      } catch (err) {
+        console.warn("Character reporting to Merlin API encountered:", err);
+      }
+    },
   });
   streamer.start();
 

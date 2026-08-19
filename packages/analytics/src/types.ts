@@ -18,6 +18,7 @@ export interface EncounterRef {
 
 export interface RosterEntry {
   playerId: string;
+  serverId?: string | null;
   name: string;
   advancedClass: string | null;
   discipline: string | null;

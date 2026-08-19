@@ -10,6 +10,7 @@ const API_URL = API_BASE_URL;
 
 interface Character {
   playerId: string;
+  serverId?: string | null;
   name: string;
   discipline: string | null;
   role: "tank" | "healer" | "dps" | null;
@@ -261,7 +262,7 @@ function AccountPageContent() {
         ) : (
           <ul className="mt-3 space-y-2">
             {me.characters.map((character) => (
-              <li key={character.playerId} className="flex items-center gap-3">
+              <li key={`${character.playerId}::${character.serverId ?? ""}`} className="flex items-center gap-3">
                 <span
                   className="h-5 w-1 rounded-full"
                   style={{ background: roleAccent(character.role) }}
@@ -275,7 +276,8 @@ function AccountPageContent() {
                 </span>
                 <button
                   onClick={async () => {
-                    await send(`/api/me/characters/${character.playerId}`, { method: "DELETE" });
+                    const query = character.serverId ? `?serverId=${encodeURIComponent(character.serverId)}` : "";
+                    await send(`/api/me/characters/${character.playerId}${query}`, { method: "DELETE" });
                     await refresh();
                   }}
                   className="text-xs uppercase tracking-[0.1em] text-[var(--color-muted)] hover:text-red-300"
@@ -294,7 +296,7 @@ function AccountPageContent() {
             </h3>
             <ul className="mt-2 space-y-2">
               {available.map((character) => (
-                <li key={character.playerId} className="flex items-center gap-3">
+                <li key={`${character.playerId}::${character.serverId ?? ""}`} className="flex items-center gap-3">
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {character.name}
                     <span className="text-[var(--color-muted)]">
@@ -305,7 +307,7 @@ function AccountPageContent() {
                     onClick={async () => {
                       const response = await send("/api/me/characters", {
                         method: "POST",
-                        body: JSON.stringify({ playerId: character.playerId }),
+                        body: JSON.stringify({ playerId: character.playerId, serverId: character.serverId ?? null }),
                       });
                       if (!response.ok) {
                         setMessage(((await response.json()) as { error: string }).error);

@@ -4,6 +4,8 @@ import type { Tenanted } from "./schema.js";
 export interface LinkedCharacter {
   /** SWTOR player id as it appears in combat logs. */
   playerId: string;
+  /** SWTOR world/server identifier, e.g. `he3000`; same player ID on a different world is a different character. */
+  serverId?: string | null;
   name: string;
   discipline: string | null;
   role: Role | null;

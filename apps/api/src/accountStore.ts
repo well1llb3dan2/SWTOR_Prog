@@ -13,6 +13,7 @@ import {
 
 export interface SeenCharacter {
   playerId: string;
+  serverId?: string | null;
   name: string;
   discipline: string | null;
   role: "tank" | "healer" | "dps" | null;
@@ -37,8 +38,8 @@ export interface AccountStore {
   issueUserToken(discordId: string, name: string): Promise<IssuedToken>;
   revokeUserToken(discordId: string, tokenId: string): Promise<void>;
   linkCharacter(discordId: string, character: LinkedCharacter): Promise<void>;
-  unlinkCharacter(discordId: string, playerId: string): Promise<void>;
-  isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string): Promise<boolean>;
+  unlinkCharacter(discordId: string, playerId: string, serverId?: string | null): Promise<void>;
+  isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string, serverId?: string | null): Promise<boolean>;
   createLinkCode(guildId: string, discordId: string): Promise<string>;
   consumeLinkCode(code: string): Promise<LinkCodeDocument | null>;
   /** Characters that appeared in reports this user uploaded. */
@@ -67,11 +68,11 @@ export class MongoAccountStore implements AccountStore {
   linkCharacter(discordId: string, character: LinkedCharacter) {
     return this.db.linkCharacter(discordId, character);
   }
-  unlinkCharacter(discordId: string, playerId: string) {
-    return this.db.unlinkCharacter(discordId, playerId);
+  unlinkCharacter(discordId: string, playerId: string, serverId?: string | null) {
+    return this.db.unlinkCharacter(discordId, playerId, serverId);
   }
-  isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string) {
-    return this.db.isCharacterClaimed(guildId, playerId, exceptDiscordId);
+  isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string, serverId?: string | null) {
+    return this.db.isCharacterClaimed(guildId, playerId, exceptDiscordId, serverId);
   }
   createLinkCode(guildId: string, discordId: string) {
     return this.db.createLinkCode(guildId, discordId);
@@ -93,6 +94,7 @@ export class MongoAccountStore implements AccountStore {
 function dedupeRoster(
   roster: {
     playerId: string;
+    serverId?: string | null;
     name: string;
     discipline: string | null;
     role: SeenCharacter["role"];
@@ -100,8 +102,10 @@ function dedupeRoster(
 ): SeenCharacter[] {
   const seen = new Map<string, SeenCharacter>();
   for (const member of roster) {
-    seen.set(member.playerId, {
+    const key = `${member.playerId}::${member.serverId ?? ""}`;
+    seen.set(key, {
       playerId: member.playerId,
+      serverId: member.serverId ?? null,
       name: member.name,
       discipline: member.discipline,
       role: member.role,
@@ -178,24 +182,35 @@ export class MemoryAccountStore implements AccountStore {
   async linkCharacter(discordId: string, character: LinkedCharacter): Promise<void> {
     const user = this.#users.get(discordId);
     if (user === undefined) return;
-    if (user.characters.some((c) => c.playerId === character.playerId)) return;
+    const targetServer = character.serverId ?? null;
+    if (user.characters.some((c) => c.playerId === character.playerId && (c.serverId ?? null) === targetServer)) return;
     user.characters.push(character);
   }
 
-  async unlinkCharacter(discordId: string, playerId: string): Promise<void> {
+  async unlinkCharacter(discordId: string, playerId: string, serverId?: string | null): Promise<void> {
     const user = this.#users.get(discordId);
     if (user === undefined) return;
-    user.characters = user.characters.filter((c) => c.playerId !== playerId);
+    user.characters = user.characters.filter((c) => {
+      const matches = c.playerId === playerId;
+      if (matches && serverId !== undefined) return (c.serverId ?? null) !== (serverId ?? null);
+      return !matches;
+    });
   }
 
   async isCharacterClaimed(
     guildId: string,
     playerId: string,
     exceptDiscordId: string,
+    serverId?: string | null,
   ): Promise<boolean> {
     for (const user of this.#users.values()) {
       if (user.guildId !== guildId || user.discordId === exceptDiscordId) continue;
-      if (user.characters.some((c) => c.playerId === playerId)) return true;
+      if (user.characters.some((c) => {
+        const samePlayer = c.playerId === playerId;
+        if (!samePlayer) return false;
+        if (serverId === undefined) return true;
+        return (c.serverId ?? null) === (serverId ?? null);
+      })) return true;
     }
     return false;
   }

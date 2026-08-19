@@ -44,10 +44,14 @@ export function currentDiscordId(request: FastifyRequest): string | null {
   return readSession(request);
 }
 
+function characterIdentityKey(character: Pick<SeenCharacter, "playerId" | "serverId">): string {
+  return `${character.playerId}::${character.serverId ?? ""}`;
+}
+
 function dedupeCharacters(characters: SeenCharacter[]): SeenCharacter[] {
   const seen = new Map<string, SeenCharacter>();
   for (const character of characters) {
-    seen.set(character.playerId, character);
+    seen.set(characterIdentityKey(character), character);
   }
   return [...seen.values()];
 }
@@ -231,8 +235,8 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
       .filter((session) => session.ownerUserId === user.discordId)
       .flatMap((session) => session.characters(Date.now()));
     const available = dedupeCharacters([...uploaded, ...live]);
-    const linked = new Set(user.characters.map((c) => c.playerId));
-    return available.filter((character) => !linked.has(character.playerId));
+    const linked = new Set(user.characters.map((c) => characterIdentityKey(c)));
+    return available.filter((character) => !linked.has(characterIdentityKey(character)));
   });
 
   app.get("/api/me/stream/status", async (request, reply) => {
@@ -265,7 +269,10 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     const user = await requireUser(request, reply);
     if (user === null) return reply;
 
-    const body = z.object({ playerId: z.string().min(1).max(32) }).parse(request.body);
+    const body = z.object({
+      playerId: z.string().min(1).max(32),
+      serverId: z.string().max(32).nullable().optional(),
+    }).parse(request.body);
 
     // Ownership proof: the character must have appeared in a log this user
     // uploaded, or in one of their active live sessions. Without that anyone
@@ -275,16 +282,23 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
       .filter((session) => session.ownerUserId === user.discordId)
       .flatMap((session) => session.characters(Date.now()));
     const seen = dedupeCharacters([...uploaded, ...live]);
-    const character = seen.find((c) => c.playerId === body.playerId);
+    const character = seen.find((c) => {
+      const targetServer = body.serverId ?? null;
+      return c.playerId === body.playerId && (c.serverId ?? null) === targetServer;
+    });
     if (character === undefined) {
       return reply.code(403).send({ error: "that character has not appeared in your uploads or live sessions" });
     }
 
-    if (await accounts.isCharacterClaimed(config.defaultGuildId, body.playerId, user.discordId)) {
+    if (await accounts.isCharacterClaimed(config.defaultGuildId, body.playerId, user.discordId, body.serverId ?? null)) {
       return reply.code(409).send({ error: "that character is already linked to someone else" });
     }
 
-    const linked: LinkedCharacter = { ...character, linkedAt: new Date() };
+    const linked: LinkedCharacter = {
+      ...character,
+      serverId: body.serverId ?? character.serverId ?? null,
+      linkedAt: new Date(),
+    };
     await accounts.linkCharacter(user.discordId, linked);
     return { ok: true, character: linked };
   });
@@ -294,7 +308,8 @@ export async function registerAuthRoutes(app: FastifyInstance, deps: AuthRouteDe
     if (user === null) return reply;
 
     const { playerId } = z.object({ playerId: z.string().min(1).max(32) }).parse(request.params);
-    await accounts.unlinkCharacter(user.discordId, playerId);
+    const serverId = z.string().max(32).nullable().optional().parse(request.query.serverId ?? null);
+    await accounts.unlinkCharacter(user.discordId, playerId, serverId ?? null);
     return { ok: true };
   });
 

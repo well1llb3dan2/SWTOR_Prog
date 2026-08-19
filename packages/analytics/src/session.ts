@@ -55,6 +55,7 @@ export class CombatSession {
   #zoneId: string | null = null;
   #difficulty: Difficulty | null = null;
   #groupSize: GroupSize | null = null;
+  #serverId: string | null = null;
   #localPlayerId: string | null = null;
 
   #current: PullAccumulator | null = null;
@@ -90,6 +91,7 @@ export class CombatSession {
         this.#zoneId = event.zone.id;
         this.#difficulty = event.difficulty;
         this.#groupSize = event.groupSize;
+        this.#serverId = event.serverId ?? this.#serverId;
         this.#rememberLocalPlayer(event);
         return;
 
@@ -147,6 +149,7 @@ export class CombatSession {
     if (player?.kind !== "player") return;
     this.#roster.set(player.playerId, {
       playerId: player.playerId,
+      serverId: this.#serverId,
       name: player.name,
       advancedClass: event.advancedClass.name,
       discipline: event.discipline.name,

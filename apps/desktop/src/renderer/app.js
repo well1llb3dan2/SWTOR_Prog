@@ -5,6 +5,7 @@ let replayFile = null;
 
 async function refreshSettings() {
   const settings = await window.desktop.getSettings();
+  if ($("serverUrl")) $("serverUrl").value = settings.serverUrl || "";
   $("logDirectory").value = settings.logDirectory;
   $("authState").textContent = settings.hasToken
     ? "Discord linked. You can start streaming now."
@@ -19,6 +20,9 @@ function render(status) {
   const sessionEl = $("sessionId");
   if (sessionEl) {
     sessionEl.textContent = status.sessionId ? `Session ID: ${status.sessionId}` : "Session ID: not connected";
+  }
+  if ($("detectedCharacter")) {
+    $("detectedCharacter").textContent = status.detectedCharacter ?? "—";
   }
   $("fileName").textContent = status.fileName ?? "—";
   $("zone").textContent = status.zone ?? "—";
@@ -41,6 +45,15 @@ function render(status) {
 
 function showError(result) {
   if (result && result.ok === false) $("detail").textContent = result.error ?? "Failed";
+}
+
+if ($("saveServer")) {
+  $("saveServer").addEventListener("click", async () => {
+    const url = $("serverUrl").value.trim();
+    if (url.length === 0) return;
+    await window.desktop.saveSettings({ serverUrl: url });
+    $("detail").textContent = "Server URL saved.";
+  });
 }
 
 $("pickDir").addEventListener("click", async () => {

@@ -156,6 +156,7 @@ export interface FallingDamageEvent extends Base<"fallingDamage"> {
 
 export interface AreaEnteredEvent extends Base<"areaEntered"> {
   zone: NamedEntity;
+  serverId: string | null;
   groupSize: GroupSize | null;
   difficulty: Difficulty | null;
   logVersion: string | null;

@@ -52,6 +52,7 @@ export class IngestSession {
   #buffer: CombatEvent[] = [];
   #pullOpen = false;
   #truncated = false;
+  #serverId: string | null = null;
 
   /**
    * Pull expiry is measured on the log's own clock, not the wall clock.
@@ -94,6 +95,9 @@ export class IngestSession {
 
   push(events: readonly CombatEvent[]): void {
     for (const event of events) {
+      if (event.type === "areaEntered" && event.serverId !== null) {
+        this.#serverId = event.serverId;
+      }
       this.#combat.push(event);
       // `onPullStart` fires inside push, so the opening event lands in the buffer.
       if (this.#pullOpen) {
@@ -148,6 +152,7 @@ export class IngestSession {
     const pull = this.#combat.current(this.#eventTime(wallNow));
     const liveCharacters = (pull?.actors ?? []).map((actor) => ({
       playerId: actor.actorId,
+      serverId: this.#serverId,
       name: actor.name,
       discipline: actor.discipline,
       role: actor.role,
@@ -155,6 +160,7 @@ export class IngestSession {
 
     const rosterCharacters = this.#combat.roster.map((member) => ({
       playerId: member.playerId,
+      serverId: this.#serverId,
       name: member.name,
       discipline: member.discipline,
       role: member.role,
@@ -162,7 +168,8 @@ export class IngestSession {
 
     const seen = new Map<string, SeenCharacter>();
     for (const character of [...liveCharacters, ...rosterCharacters]) {
-      seen.set(character.playerId, character);
+      const key = `${character.playerId}::${character.serverId ?? ""}`;
+      seen.set(key, character);
     }
     return [...seen.values()];
   }

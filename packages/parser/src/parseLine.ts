@@ -73,6 +73,7 @@ function classify(scan: ScannedLine, context: EventContext, raw: string): Combat
         ...context,
         type: "areaEntered",
         zone: { name: area[1]!.trim(), id: area[2]! },
+        serverId: scan.value ?? null,
         groupSize: toGroupSize(area[3]),
         difficulty: toDifficulty(area[4]),
         logVersion: scan.trailing,

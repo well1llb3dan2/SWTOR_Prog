@@ -158,16 +158,25 @@ export class SwtorDatabase {
   }
 
   async linkCharacter(discordId: string, character: LinkedCharacter): Promise<void> {
+    const serverId = character.serverId ?? null;
     await this.users.updateOne(
-      { discordId, "characters.playerId": { $ne: character.playerId } },
+      {
+        discordId,
+        $nor: [{ characters: { $elemMatch: { playerId: character.playerId, serverId } } }],
+      },
       { $push: { characters: character }, $set: { updatedAt: new Date() } },
     );
   }
 
-  async unlinkCharacter(discordId: string, playerId: string): Promise<void> {
+  async unlinkCharacter(discordId: string, playerId: string, serverId?: string | null): Promise<void> {
     await this.users.updateOne(
       { discordId },
-      { $pull: { characters: { playerId } }, $set: { updatedAt: new Date() } },
+      {
+        $pull: {
+          characters: serverId === undefined ? { playerId } : { playerId, serverId: serverId ?? null },
+        },
+        $set: { updatedAt: new Date() },
+      },
     );
   }
 
@@ -179,14 +188,21 @@ export class SwtorDatabase {
     );
   }
 
-  /** True when any other user already owns the character. */
-  async isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string) {
-    const owner = await this.users.findOne({
+  /** True when any other user already owns the same SWTOR character on the same world. */
+  async isCharacterClaimed(guildId: string, playerId: string, exceptDiscordId: string, serverId?: string | null) {
+    const users = await this.users.find({
       guildId,
-      "characters.playerId": playerId,
       discordId: { $ne: exceptDiscordId },
-    });
-    return owner !== null;
+      "characters.playerId": playerId,
+    }).toArray();
+
+    return users.some((user) =>
+      user.characters.some((character) => {
+        if (character.playerId !== playerId) return false;
+        if (serverId === undefined) return true;
+        return (character.serverId ?? null) === (serverId ?? null);
+      }),
+    );
   }
 
   async createLinkCode(guildId: string, discordId: string, ttlMs = 10 * 60_000) {

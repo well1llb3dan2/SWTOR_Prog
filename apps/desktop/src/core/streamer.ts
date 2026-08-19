@@ -5,6 +5,7 @@ import type { IngestClient } from "./ingestClient.js";
 import { parseLogFileName } from "@swtor/parser";
 import { LogTailer, type TailerOptions } from "./tailer.js";
 import type { LogFileInfo } from "./logDirectory.js";
+import type { DetectedCharacterInput } from "./api.js";
 
 export interface StreamerStatus {
   fileName: string | null;
@@ -12,12 +13,14 @@ export interface StreamerStatus {
   eventsPerSecond: number;
   unknownLines: number;
   zone: string | null;
+  detectedCharacter?: string | null;
 }
 
 export interface LogStreamerOptions {
   directory: string;
   client: IngestClient;
   onStatus?: (status: StreamerStatus) => void;
+  onCharacterDetected?: (character: DetectedCharacterInput) => void;
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
 }
 
@@ -27,17 +30,23 @@ export class LogStreamer {
   readonly #tailer: LogTailer;
   readonly #batcher: EventBatcher;
   readonly #onStatus: ((status: StreamerStatus) => void) | undefined;
+  readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
 
   #parser: LogParser | null = null;
   #fileName: string | null = null;
   #eventsParsed = 0;
   #unknownLines = 0;
   #zone: string | null = null;
+  #serverId: string | null = null;
+  #discipline: string | null = null;
+  #detectedCharacterName: string | null = null;
+  #seenCharacters = new Set<string>();
   #recentTimestamps: number[] = [];
 
   constructor(options: LogStreamerOptions) {
     this.#client = options.client;
     this.#onStatus = options.onStatus;
+    this.#onCharacterDetected = options.onCharacterDetected;
 
     this.#batcher = new EventBatcher({
       maxEvents: 50,
@@ -59,6 +68,7 @@ export class LogStreamer {
       eventsPerSecond: this.#rate(),
       unknownLines: this.#unknownLines,
       zone: this.#zone,
+      detectedCharacter: this.#detectedCharacterName,
     };
   }
 
@@ -74,6 +84,10 @@ export class LogStreamer {
   #onFileChange(file: LogFileInfo | null): void {
     this.#fileName = file?.name ?? null;
     this.#zone = null;
+    this.#serverId = null;
+    this.#discipline = null;
+    this.#detectedCharacterName = null;
+    this.#seenCharacters.clear();
     this.#eventsParsed = 0;
     this.#unknownLines = 0;
 
@@ -96,7 +110,26 @@ export class LogStreamer {
       const event = this.#parser.push(line);
       if (event === null) continue;
       if (event.type === "unknown") this.#unknownLines += 1;
-      if (event.type === "areaEntered") this.#zone = event.zone.name;
+      if (event.type === "areaEntered") {
+        this.#zone = event.zone.name;
+        if (event.serverId) this.#serverId = event.serverId;
+      }
+      if (event.type === "disciplineChanged") {
+        this.#discipline = event.discipline.name;
+      }
+      if (event.source?.kind === "player" && event.source.name) {
+        const charName = event.source.name.trim();
+        if (charName.length > 0 && !this.#seenCharacters.has(charName)) {
+          this.#seenCharacters.add(charName);
+          this.#detectedCharacterName = charName;
+          this.#onCharacterDetected?.({
+            characterName: charName,
+            serverId: this.#serverId,
+            discipline: this.#discipline,
+            occurredAt: new Date(event.timestamp || Date.now()).toISOString(),
+          });
+        }
+      }
       events.push(event);
     }
 
