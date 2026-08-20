@@ -2,12 +2,11 @@ import { open } from "node:fs/promises";
 import { LogParser, parseLine, parseLogFileName } from "@swtor/parser";
 import { CombatSession, type LivePullState, type PullSummary } from "@swtor/analytics";
 import type { CombatEvent } from "@swtor/shared";
-import { EventBatcher } from "./batcher.js";
-import type { IngestClient } from "./ingestClient.js";
 import { LogTailer, type TailerOptions } from "./tailer.js";
 import type { LogFileInfo } from "./logDirectory.js";
 import type { DetectedCharacterInput } from "./api.js";
 import { decodeLogText } from "./encoding.js";
+import { ReplaySource } from "./replay.js";
 
 export interface LogFileInitialIdentity {
   characterName: string;
