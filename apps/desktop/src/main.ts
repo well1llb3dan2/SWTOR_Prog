@@ -13,7 +13,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.2.3";
+const CLIENT_VERSION = "0.2.4";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
@@ -105,6 +105,7 @@ const status: AppStatus = {
 function publish(patch: Partial<AppStatus> = {}): void {
   Object.assign(status, patch);
   status.revision += 1;
+  status.detail = status.detail ?? `Status update ${status.revision}`;
   window?.webContents.send("status", status);
 }
 
@@ -148,9 +149,8 @@ function getStreamer(): LogStreamer {
         pullsCount: s.pullsCount,
         bossKills: s.bossKills,
         bossWipes: s.bossWipes,
-        replayProgress: status.mode === "replay" && s.totalEvents && s.totalEvents > 0
-          ? Math.min(100, Math.round((s.eventsParsed / s.totalEvents) * 100))
-          : status.replayProgress,
+        replayProgress: status.mode === "replay" && s.totalEvents && s.totalEvents > 0 ? Math.min(100, Math.round((s.eventsParsed / s.totalEvents) * 100)) : status.replayProgress,
+        detail: `Telemetry: ${s.eventsParsed.toLocaleString()} events parsed${s.totalEvents ? ` / ${s.totalEvents.toLocaleString()}` : ""}`,
       }),
     onLog: (msg) => appendLog(msg),
     onSnapshot: (snapshot, inCombat) => {

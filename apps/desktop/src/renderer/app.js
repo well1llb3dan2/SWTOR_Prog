@@ -1,3 +1,4 @@
+  if ($("statusRevision")) $("statusRevision").textContent = `r${status.revision ?? "?"}`;
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat();
 
