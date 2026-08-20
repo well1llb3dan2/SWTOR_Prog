@@ -181,6 +181,13 @@ describe("phase and entity resolution", () => {
     expect(classifyEncounterEntity(encounter, "Titan Probe")).toBe("mechanic");
   });
 
+  it("classifies Dustclaw variants as Thrasher mechanics", () => {
+    const encounter = ENCOUNTERS_BY_ID.get("snv_thrasher")!;
+    expect(classifyEncounterEntity(encounter, "Dustclaw Alpha")).toBe("mechanic");
+    expect(classifyEncounterEntity(encounter, "Dustclaw Ravager")).toBe("mechanic");
+    expect(classifyEncounterEntity(encounter, "Dustclaw Packling")).toBe("mechanic");
+  });
+
   it("keeps catalogued mechanics inside the matched boss encounter", () => {
     const encounter = ENCOUNTERS_BY_ID.get("snv_dashroode")!;
     expect(classifyEncounterEntity(encounter, "Dash'Roode")).toBe("boss");

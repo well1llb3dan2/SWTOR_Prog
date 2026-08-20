@@ -411,7 +411,7 @@ const SNV = operation("snv", [
     id: "snv_thrasher",
     name: "Thrasher",
     bossNames: ["thrasher"],
-    adds: ["Mercenary Demolitionist", "Corrupted Firebug"],
+    adds: ["Mercenary Demolitionist", "Corrupted Firebug", "Dustclaw Alpha", "Dustclaw Ravager", "Dustclaw Packling"],
     phases: [p(1, "Arena Engagement & Wall Snipers", "Knockup Protocol", "Encounter start")],
     wipeMechanics: [
       {
