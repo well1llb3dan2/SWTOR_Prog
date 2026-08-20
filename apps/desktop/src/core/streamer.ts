@@ -78,6 +78,11 @@ export interface StreamerStatus {
   liveDps: number;
   liveHps: number;
   liveDtps: number;
+  liveCriticalHits: number;
+  liveMitigatedDamage: number;
+  liveAbsorbed: number;
+  liveOverkill: number;
+  liveThreat: number;
   totalDamage: number;
   totalHealing: number;
   totalDamageTaken: number;
@@ -130,6 +135,11 @@ export class LogStreamer {
   #liveDps = 0;
   #liveHps = 0;
   #liveDtps = 0;
+  #liveCriticalHits = 0;
+  #liveMitigatedDamage = 0;
+  #liveAbsorbed = 0;
+  #liveOverkill = 0;
+  #liveThreat = 0;
   #totalDamage = 0;
   #totalHealing = 0;
   #totalDamageTaken = 0;
@@ -172,6 +182,11 @@ export class LogStreamer {
       liveDps: this.#liveDps,
       liveHps: this.#liveHps,
       liveDtps: this.#liveDtps,
+      liveCriticalHits: this.#liveCriticalHits,
+      liveMitigatedDamage: this.#liveMitigatedDamage,
+      liveAbsorbed: this.#liveAbsorbed,
+      liveOverkill: this.#liveOverkill,
+      liveThreat: this.#liveThreat,
       totalDamage: this.#totalDamage,
       totalHealing: this.#totalHealing,
       totalDamageTaken: this.#totalDamageTaken,
@@ -292,6 +307,11 @@ export class LogStreamer {
     this.#liveDps = 0;
     this.#liveHps = 0;
     this.#liveDtps = 0;
+    this.#liveCriticalHits = 0;
+    this.#liveMitigatedDamage = 0;
+    this.#liveAbsorbed = 0;
+    this.#liveOverkill = 0;
+    this.#liveThreat = 0;
     this.#totalDamage = 0;
     this.#totalHealing = 0;
     this.#totalDamageTaken = 0;
@@ -447,6 +467,11 @@ export class LogStreamer {
           this.#liveDps = Math.round(localActor.dps);
           this.#liveHps = Math.round(localActor.hps);
           this.#liveDtps = Math.round(localActor.dtps);
+          this.#liveCriticalHits = localActor.criticalHits ?? 0;
+          this.#liveMitigatedDamage = localActor.mitigatedDamage ?? 0;
+          this.#liveAbsorbed = localActor.absorbed;
+          this.#liveOverkill = localActor.overkill ?? 0;
+          this.#liveThreat = localActor.threat ?? 0;
           this.#totalDamage = localActor.damage;
           this.#totalHealing = localActor.healing;
           this.#totalDamageTaken = localActor.damageTaken;

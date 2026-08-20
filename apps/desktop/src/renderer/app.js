@@ -2,6 +2,7 @@ const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat();
 
 let replayFile = null;
+let latestRevision = -1;
 
 function formatMetric(n) {
   if (!n || n <= 0) return "0";
@@ -21,6 +22,8 @@ async function refreshSettings() {
 }
 
 function render(status) {
+  if (typeof status.revision === "number" && status.revision < latestRevision) return;
+  if (typeof status.revision === "number") latestRevision = status.revision;
   $("dot").className = `dot ${status.connection}`;
   $("connection").textContent = status.connection;
   $("detail").textContent = status.detail ?? "";
@@ -52,6 +55,11 @@ function render(status) {
   if ($("liveDps")) $("liveDps").textContent = formatMetric(status.liveDps);
   if ($("liveHps")) $("liveHps").textContent = formatMetric(status.liveHps);
   if ($("liveDtps")) $("liveDtps").textContent = formatMetric(status.liveDtps);
+  if ($("liveCriticalHits")) $("liveCriticalHits").textContent = number.format(status.liveCriticalHits ?? 0);
+  if ($("liveMitigatedDamage")) $("liveMitigatedDamage").textContent = formatMetric(status.liveMitigatedDamage);
+  if ($("liveAbsorbed")) $("liveAbsorbed").textContent = formatMetric(status.liveAbsorbed);
+  if ($("liveOverkill")) $("liveOverkill").textContent = formatMetric(status.liveOverkill);
+  if ($("liveThreat")) $("liveThreat").textContent = formatMetric(status.liveThreat);
   if ($("bossKillsAndWipes")) $("bossKillsAndWipes").textContent = `${status.bossKills ?? 0} / ${status.bossWipes ?? 0}`;
   if ($("personalDeaths")) $("personalDeaths").textContent = `${status.personalDeaths ?? 0}`;
   if ($("raidDeaths")) $("raidDeaths").textContent = `${status.raidDeaths ?? 0}`;

@@ -13,12 +13,13 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.2.1";
+const CLIENT_VERSION = "0.2.3";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
 
 interface AppStatus {
+  revision: number;
   mode: "idle" | "live" | "replay";
   connection: ConnectionState;
   detail: string | null;
@@ -41,6 +42,11 @@ interface AppStatus {
   liveDps: number;
   liveHps: number;
   liveDtps: number;
+  liveCriticalHits: number;
+  liveMitigatedDamage: number;
+  liveAbsorbed: number;
+  liveOverkill: number;
+  liveThreat: number;
   totalDamage: number;
   totalHealing: number;
   totalDamageTaken: number;
@@ -57,6 +63,7 @@ let settings: DesktopSettings;
 let streamer: LogStreamer | null = null;
 
 const status: AppStatus = {
+  revision: 0,
   mode: "idle",
   connection: "idle",
   detail: null,
@@ -79,6 +86,11 @@ const status: AppStatus = {
   liveDps: 0,
   liveHps: 0,
   liveDtps: 0,
+  liveCriticalHits: 0,
+  liveMitigatedDamage: 0,
+  liveAbsorbed: 0,
+  liveOverkill: 0,
+  liveThreat: 0,
   totalDamage: 0,
   totalHealing: 0,
   totalDamageTaken: 0,
@@ -92,6 +104,7 @@ const status: AppStatus = {
 
 function publish(patch: Partial<AppStatus> = {}): void {
   Object.assign(status, patch);
+  status.revision += 1;
   window?.webContents.send("status", status);
 }
 
@@ -122,6 +135,11 @@ function getStreamer(): LogStreamer {
         liveDps: s.liveDps,
         liveHps: s.liveHps,
         liveDtps: s.liveDtps,
+        liveCriticalHits: s.liveCriticalHits,
+        liveMitigatedDamage: s.liveMitigatedDamage,
+        liveAbsorbed: s.liveAbsorbed,
+        liveOverkill: s.liveOverkill,
+        liveThreat: s.liveThreat,
         totalDamage: s.totalDamage,
         totalHealing: s.totalHealing,
         totalDamageTaken: s.totalDamageTaken,
