@@ -64,7 +64,6 @@ export class ReplaySource {
   start(): void {
     if (this.#timer !== null || this.#events.length === 0) return;
     this.#timer = setInterval(() => this.tick(), this.#options.tickMs);
-    this.#timer.unref?.();
   }
 
   stop(): void {
@@ -81,6 +80,13 @@ export class ReplaySource {
       return;
     }
 
+    // Skip prolonged silence/downtime gaps (> 2500ms) so replay simulation
+    // doesn't stall for minutes waiting for the next encounter.
+    const nextEvent = this.#events[this.#cursor];
+    if (nextEvent && nextEvent.timestamp > this.#virtualNow + 2500) {
+      this.#virtualNow = nextEvent.timestamp - 100;
+    }
+
     this.#virtualNow += this.#options.tickMs * this.#options.speed;
 
     const batch: CombatEvent[] = [];
@@ -94,11 +100,12 @@ export class ReplaySource {
 
     if (batch.length > 0) {
       this.#options.onEvents(batch);
-      this.#options.onProgress?.({
-        emitted: this.#cursor,
-        total: this.#events.length,
-        elapsedMs: this.#virtualNow - this.startedAt,
-      });
     }
+
+    this.#options.onProgress?.({
+      emitted: this.#cursor,
+      total: this.#events.length,
+      elapsedMs: Math.max(0, this.#virtualNow - this.startedAt),
+    });
   }
 }
