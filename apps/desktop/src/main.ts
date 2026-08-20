@@ -13,7 +13,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.1.7";
+const CLIENT_VERSION = "0.2.1";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
@@ -130,6 +130,9 @@ function getStreamer(): LogStreamer {
         pullsCount: s.pullsCount,
         bossKills: s.bossKills,
         bossWipes: s.bossWipes,
+        replayProgress: status.mode === "replay" && s.totalEvents && s.totalEvents > 0
+          ? Math.min(100, Math.round((s.eventsParsed / s.totalEvents) * 100))
+          : status.replayProgress,
       }),
     onLog: (msg) => appendLog(msg),
     onSnapshot: (snapshot, inCombat) => {
@@ -252,6 +255,7 @@ app.whenReady().then(async () => {
   createWindow();
 
   ipcMain.handle("settings:get", () => redactSettings(settings));
+  ipcMain.handle("status:get", () => ({ ...status }));
 
   ipcMain.handle("settings:save", async (_event, incoming: Partial<DesktopSettings>) => {
     settings = {

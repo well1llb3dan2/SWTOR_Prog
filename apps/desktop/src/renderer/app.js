@@ -141,4 +141,5 @@ $("pickReplay").addEventListener("click", async () => {
 $("stop").addEventListener("click", () => window.desktop.stop());
 
 window.desktop.onStatus(render);
+void window.desktop.getStatus().then(render);
 void refreshSettings();

@@ -8,6 +8,7 @@ import { contextBridge, ipcRenderer } from "electron";
  */
 contextBridge.exposeInMainWorld("desktop", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
+  getStatus: () => ipcRenderer.invoke("status:get"),
   saveSettings: (settings: unknown) => ipcRenderer.invoke("settings:save", settings),
   pickLogDirectory: () => ipcRenderer.invoke("dialog:log-directory"),
   pickReplayFile: () => ipcRenderer.invoke("dialog:replay-file"),
