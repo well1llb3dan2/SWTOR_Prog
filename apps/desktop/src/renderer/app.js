@@ -1,4 +1,3 @@
-  if ($("statusRevision")) $("statusRevision").textContent = `r${status.revision ?? "?"}`;
 const $ = (id) => document.getElementById(id);
 const number = new Intl.NumberFormat();
 
@@ -25,6 +24,7 @@ async function refreshSettings() {
 function render(status) {
   if (typeof status.revision === "number" && status.revision < latestRevision) return;
   if (typeof status.revision === "number") latestRevision = status.revision;
+  if ($("statusRevision")) $("statusRevision").textContent = `r${status.revision ?? "?"}`;
   $("dot").className = `dot ${status.connection}`;
   $("connection").textContent = status.connection;
   $("detail").textContent = status.detail ?? "";
