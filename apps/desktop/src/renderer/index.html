@@ -16,72 +16,77 @@
         --gold: #d4af37;
         --text: #d8e6df;
         --muted: #7d968b;
+        --red: #f87171;
+        --blue: #60a5fa;
       }
       * {
         box-sizing: border-box;
       }
       body {
         margin: 0;
-        padding: 20px;
+        padding: 16px;
         background: var(--bg);
         color: var(--text);
         font-family: "Segoe UI", system-ui, sans-serif;
-        font-size: 14px;
+        font-size: 13px;
       }
       h1 {
-        font-size: 16px;
+        font-size: 15px;
         letter-spacing: 0.14em;
         text-transform: uppercase;
         color: var(--gold);
-        margin: 0 0 16px;
+        margin: 0 0 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
       section {
         background: var(--panel);
         border: 1px solid var(--line);
         border-radius: 6px;
-        padding: 14px 16px;
-        margin-bottom: 14px;
+        padding: 12px 14px;
+        margin-bottom: 12px;
       }
       h2 {
-        font-size: 11px;
+        font-size: 10px;
         letter-spacing: 0.16em;
         text-transform: uppercase;
         color: var(--muted);
-        margin: 0 0 12px;
+        margin: 0 0 10px;
       }
       label {
         display: block;
-        font-size: 11px;
+        font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.1em;
         color: var(--muted);
-        margin-bottom: 4px;
+        margin-bottom: 3px;
       }
       input,
       select {
         width: 100%;
-        padding: 7px 9px;
+        padding: 6px 8px;
         background: #0a120e;
         border: 1px solid var(--line);
         border-radius: 4px;
         color: var(--text);
         font-family: inherit;
-        font-size: 13px;
+        font-size: 12px;
       }
       .row {
         display: grid;
         grid-template-columns: 1fr auto;
         gap: 8px;
-        margin-bottom: 12px;
+        margin-bottom: 8px;
       }
       button {
-        padding: 7px 14px;
+        padding: 6px 12px;
         background: transparent;
         border: 1px solid var(--green);
         border-radius: 4px;
         color: var(--green);
         font-family: inherit;
-        font-size: 12px;
+        font-size: 11px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         cursor: pointer;
@@ -100,30 +105,57 @@
       .actions {
         display: flex;
         gap: 8px;
+        align-items: center;
       }
       dl {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
         margin: 0;
       }
       dt {
-        font-size: 10px;
+        font-size: 9px;
         letter-spacing: 0.12em;
         text-transform: uppercase;
         color: var(--muted);
-        margin-bottom: 3px;
+        margin-bottom: 2px;
       }
       dd {
         margin: 0;
-        font-size: 18px;
+        font-size: 14px;
         font-variant-numeric: tabular-nums;
+        font-weight: 600;
+      }
+      .metric-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .metric-card {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 8px 10px;
+      }
+      .metric-card span {
+        display: block;
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--muted);
+      }
+      .metric-card strong {
+        display: block;
+        font-size: 16px;
+        font-variant-numeric: tabular-nums;
+        margin-top: 2px;
       }
       .state {
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        font-size: 12px;
+        gap: 6px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.1em;
       }
@@ -137,7 +169,7 @@
         background: var(--green);
       }
       .dot.error {
-        background: #f87171;
+        background: var(--red);
       }
       .dot.reconnecting,
       .dot.connecting {
@@ -145,18 +177,38 @@
       }
       .detail {
         color: var(--muted);
-        font-size: 12px;
-        margin-top: 8px;
+        font-size: 11px;
+        margin-top: 6px;
         min-height: 16px;
       }
       progress {
         width: 100%;
         height: 6px;
       }
+      #logConsole {
+        height: 110px;
+        overflow-y: auto;
+        background: #060c09;
+        border: 1px solid var(--line);
+        border-radius: 4px;
+        padding: 6px 8px;
+        font-family: Consolas, monospace;
+        font-size: 11px;
+        color: var(--muted);
+        line-height: 1.4;
+      }
+      #logConsole p {
+        margin: 2px 0;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
     </style>
   </head>
   <body>
-    <h1>SWTOR Combat Streamer</h1>
+    <h1>
+      <span>SWTOR Combat Streamer</span>
+      <span style="font-size: 11px; color: var(--muted); text-transform: none; font-weight: normal;">v0.1.7</span>
+    </h1>
 
     <section>
       <h2>Connection</h2>
@@ -189,7 +241,7 @@
     </section>
 
     <section>
-      <h2>Streaming</h2>
+      <h2>Streaming & Simulation</h2>
       <div class="actions">
         <button id="startLive" class="primary">Start live</button>
         <button id="pickReplay">Replay a log…</button>
@@ -197,29 +249,62 @@
           <option value="1">1x</option>
           <option value="4" selected>4x</option>
           <option value="10">10x</option>
-          <option value="60">60x</option>
+          <option value="60">60x (Fast)</option>
         </select>
         <button id="stop">Stop</button>
       </div>
-      <div id="replayWrap" style="display: none; margin-top: 12px">
+      <div id="replayWrap" style="display: none; margin-top: 10px">
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-bottom: 3px;">
+          <span>Replay progress</span>
+          <span id="replayPercent">0%</span>
+        </div>
         <progress id="replay" max="100" value="0"></progress>
       </div>
       <div id="report" class="detail"></div>
     </section>
 
+    <!-- Live Telemetry & Combat Analytics -->
     <section>
-      <h2>Activity</h2>
+      <h2>Live Combat Telemetry</h2>
+      <div class="metric-grid">
+        <div class="metric-card">
+          <span>LIVE DPS</span>
+          <strong id="liveDps" style="color: var(--text)">0</strong>
+        </div>
+        <div class="metric-card">
+          <span>LIVE HPS</span>
+          <strong id="liveHps" style="color: var(--green)">0</strong>
+        </div>
+        <div class="metric-card">
+          <span>LIVE DTPS</span>
+          <strong id="liveDtps" style="color: var(--gold)">0</strong>
+        </div>
+        <div class="metric-card">
+          <span>DEATHS / WIPES</span>
+          <strong id="deathsAndWipes" style="color: var(--red)">0 / 0</strong>
+        </div>
+      </div>
+
       <dl>
-        <div><dt>Character</dt><dd id="detectedCharacter" style="font-size: 12px; color: var(--green)">—</dd></div>
-        <div><dt>Active Boss</dt><dd id="activeBoss" style="font-size: 12px; color: var(--gold)">—</dd></div>
-        <div><dt>Last Pull</dt><dd id="lastPullOutcome" style="font-size: 12px">—</dd></div>
-        <div><dt>File</dt><dd id="fileName" style="font-size: 12px">—</dd></div>
-        <div><dt>Zone</dt><dd id="zone" style="font-size: 12px">—</dd></div>
-        <div><dt>Events/sec</dt><dd id="rate">0</dd></div>
-        <div><dt>Events parsed</dt><dd id="parsed">0</dd></div>
-        <div><dt>Queued</dt><dd id="queued">0</dd></div>
-        <div><dt>Unparsed lines</dt><dd id="unknown">0</dd></div>
+        <div><dt>Character</dt><dd id="detectedCharacter" style="color: var(--green)">—</dd></div>
+        <div><dt>Active Boss</dt><dd id="activeBoss" style="color: var(--gold)">—</dd></div>
+        <div><dt>Last Outcome</dt><dd id="lastPullOutcome">—</dd></div>
+        <div><dt>File</dt><dd id="fileName">—</dd></div>
+        <div><dt>Zone</dt><dd id="zone">—</dd></div>
+        <div><dt>Discipline</dt><dd id="discipline">—</dd></div>
+        <div><dt>Events / sec</dt><dd id="rate">0</dd></div>
+        <div><dt>Events Parsed</dt><dd id="parsed">0</dd></div>
+        <div><dt>Total Events</dt><dd id="totalEvents">—</dd></div>
+        <div><dt>Pulls (K / W)</dt><dd id="pullsSummary">0 (0 / 0)</dd></div>
+        <div><dt>Total Damage</dt><dd id="totalDamage">0</dd></div>
+        <div><dt>Total Healing</dt><dd id="totalHealing">0</dd></div>
       </dl>
+    </section>
+
+    <!-- Diagnostics Event Console -->
+    <section>
+      <h2>Diagnostics & Event Log</h2>
+      <div id="logConsole"></div>
     </section>
 
     <script src="app.js"></script>

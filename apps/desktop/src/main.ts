@@ -27,14 +27,28 @@ interface AppStatus {
   fileName: string | null;
   zone: string | null;
   detectedCharacter: string | null;
+  discipline: string | null;
+  combatStyle: string | null;
   activeBoss: string | null;
   lastPullOutcome: string | null;
   eventsParsed: number;
+  totalEvents: number | null;
   eventsPerSecond: number;
   unknownLines: number;
   queuedEvents: number;
   droppedEvents: number;
   replayProgress: number | null;
+  liveDps: number;
+  liveHps: number;
+  liveDtps: number;
+  totalDamage: number;
+  totalHealing: number;
+  totalDamageTaken: number;
+  deaths: number;
+  pullsCount: number;
+  bossKills: number;
+  wipes: number;
+  logs: string[];
 }
 
 let window: BrowserWindow | null = null;
@@ -50,19 +64,40 @@ const status: AppStatus = {
   fileName: null,
   zone: null,
   detectedCharacter: null,
+  discipline: null,
+  combatStyle: null,
   activeBoss: null,
   lastPullOutcome: null,
   eventsParsed: 0,
+  totalEvents: null,
   eventsPerSecond: 0,
   unknownLines: 0,
   queuedEvents: 0,
   droppedEvents: 0,
   replayProgress: null,
+  liveDps: 0,
+  liveHps: 0,
+  liveDtps: 0,
+  totalDamage: 0,
+  totalHealing: 0,
+  totalDamageTaken: 0,
+  deaths: 0,
+  pullsCount: 0,
+  bossKills: 0,
+  wipes: 0,
+  logs: [`[${new Date().toLocaleTimeString()}] SWTOR Combat Streamer initialized.`],
 };
 
 function publish(patch: Partial<AppStatus> = {}): void {
   Object.assign(status, patch);
   window?.webContents.send("status", status);
+}
+
+function appendLog(message: string): void {
+  const time = new Date().toLocaleTimeString();
+  const line = `[${time}] ${message}`;
+  const logs = [...status.logs, line].slice(-100);
+  publish({ logs });
 }
 
 function getStreamer(): LogStreamer {
@@ -74,12 +109,26 @@ function getStreamer(): LogStreamer {
         fileName: s.fileName,
         zone: s.zone,
         eventsParsed: s.eventsParsed,
+        totalEvents: s.totalEvents,
         eventsPerSecond: s.eventsPerSecond,
         unknownLines: s.unknownLines,
         detectedCharacter: s.detectedCharacter,
+        discipline: s.discipline,
+        combatStyle: s.combatStyle,
         activeBoss: s.activeBoss,
         lastPullOutcome: s.lastPullOutcome,
+        liveDps: s.liveDps,
+        liveHps: s.liveHps,
+        liveDtps: s.liveDtps,
+        totalDamage: s.totalDamage,
+        totalHealing: s.totalHealing,
+        totalDamageTaken: s.totalDamageTaken,
+        deaths: s.deaths,
+        pullsCount: s.pullsCount,
+        bossKills: s.bossKills,
+        wipes: s.wipes,
       }),
+    onLog: (msg) => appendLog(msg),
     onSnapshot: (snapshot, inCombat) => {
       void reportLiveSnapshot(settings.serverUrl, settings.token, snapshot, inCombat);
     },
@@ -88,9 +137,11 @@ function getStreamer(): LogStreamer {
         publish({ detectedCharacter: character.characterName, detail: `Syncing character "${character.characterName}" to Merlin...` });
         await reportDetectedCharacter(settings.serverUrl, settings.token, character);
         publish({ detail: `Character "${character.characterName}" synced to Merlin.` });
+        appendLog(`Character "${character.characterName}" synced to Merlin API.`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         publish({ detail: `Character sync to Merlin failed: ${message}` });
+        appendLog(`Character sync failed: ${message}`);
         console.warn("Character reporting to Merlin API encountered:", err);
       }
     },
@@ -100,9 +151,11 @@ function getStreamer(): LogStreamer {
         publish({ detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...` });
         await reportProgressionPull(settings.serverUrl, settings.token, pull, characterName, serverId);
         publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
+        appendLog(`Synced ${bossName} (${pull.outcome}) with ${pull.actors.length} actors to Merlin.`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         publish({ detail: `Pull sync to Merlin failed: ${message}` });
+        appendLog(`Pull sync failed: ${message}`);
         console.warn("Pull reporting to Merlin API encountered:", err);
       }
     },
@@ -121,6 +174,7 @@ async function startLive(): Promise<{ ok: boolean; error?: string }> {
 
   const active = getStreamer();
   active.startLive();
+  appendLog("Live log streamer active.");
 
   publish({ mode: "live", connection: "connected", replayProgress: null, detail: "Streaming combat logs live..." });
   return { ok: true };
@@ -131,25 +185,37 @@ async function startReplay(
   speed: number,
 ): Promise<{ ok: boolean; error?: string }> {
   if (settings.token.length === 0) {
+    appendLog("Cannot start replay: Discord account is not linked.");
     return { ok: false, error: "Please click 'Sign in with Discord' first to link your account to Merlin." };
   }
   teardown();
 
   const active = getStreamer();
+  appendLog(`Starting replay of "${filePath}" at ${speed}x speed...`);
   publish({ mode: "replay", connection: "connected", replayProgress: 0, detail: `Starting replay at ${speed}x...` });
 
-  const result = await active.startReplay(
-    filePath,
-    speed,
-    (progress) => {
-      publish({ mode: "replay", connection: "connected", replayProgress: progress.percent });
-    },
-    () => {
-      publish({ mode: "idle", connection: "idle", activeBoss: null, replayProgress: 100, detail: "Replay simulation complete." });
-    },
-  );
-
-  return result;
+  try {
+    const result = await active.startReplay(
+      filePath,
+      speed,
+      (progress) => {
+        publish({ mode: "replay", connection: "connected", replayProgress: progress.percent });
+      },
+      () => {
+        appendLog("Replay simulation completed.");
+        publish({ mode: "idle", connection: "idle", activeBoss: null, replayProgress: 100, detail: "Replay simulation complete." });
+      },
+    );
+    if (!result.ok) {
+      appendLog(`Replay failed: ${result.error ?? "Unknown error"}`);
+    }
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    appendLog(`Replay error: ${message}`);
+    publish({ mode: "idle", connection: "error", detail: `Replay failed: ${message}` });
+    return { ok: false, error: message };
+  }
 }
 
 function createWindow(): void {

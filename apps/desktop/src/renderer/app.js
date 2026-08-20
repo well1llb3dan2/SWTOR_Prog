@@ -3,6 +3,13 @@ const number = new Intl.NumberFormat();
 
 let replayFile = null;
 
+function formatMetric(n) {
+  if (!n || n <= 0) return "0";
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return number.format(n);
+}
+
 async function refreshSettings() {
   const settings = await window.desktop.getSettings();
   if ($("serverUrl")) $("serverUrl").value = settings.serverUrl || "";
@@ -17,12 +24,13 @@ function render(status) {
   $("dot").className = `dot ${status.connection}`;
   $("connection").textContent = status.connection;
   $("detail").textContent = status.detail ?? "";
-  const sessionEl = $("sessionId");
-  if (sessionEl) {
-    sessionEl.textContent = status.sessionId ? `Session ID: ${status.sessionId}` : "Session ID: not connected";
-  }
+
+  // Character & Boss State
   if ($("detectedCharacter")) {
     $("detectedCharacter").textContent = status.detectedCharacter ?? "—";
+  }
+  if ($("discipline")) {
+    $("discipline").textContent = status.discipline ? `${status.discipline}${status.combatStyle ? ` (${status.combatStyle})` : ""}` : "—";
   }
   if ($("activeBoss")) {
     $("activeBoss").textContent = status.activeBoss ?? "—";
@@ -30,18 +38,42 @@ function render(status) {
   if ($("lastPullOutcome")) {
     $("lastPullOutcome").textContent = status.lastPullOutcome ?? "—";
   }
+
+  // File & Zone
   $("fileName").textContent = status.fileName ?? "—";
   $("zone").textContent = status.zone ?? "—";
-  $("rate").textContent = number.format(status.eventsPerSecond);
-  $("parsed").textContent = number.format(status.eventsParsed);
-  $("queued").textContent = number.format(status.queuedEvents);
-  $("unknown").textContent = number.format(status.unknownLines);
+  $("rate").textContent = number.format(status.eventsPerSecond ?? 0);
+  $("parsed").textContent = number.format(status.eventsParsed ?? 0);
+  if ($("totalEvents")) {
+    $("totalEvents").textContent = status.totalEvents ? number.format(status.totalEvents) : "—";
+  }
 
-  $("report").textContent = status.reportCode === null ? "" : `Report ${status.reportCode}`;
+  // Live Telemetry HUD
+  if ($("liveDps")) $("liveDps").textContent = formatMetric(status.liveDps);
+  if ($("liveHps")) $("liveHps").textContent = formatMetric(status.liveHps);
+  if ($("liveDtps")) $("liveDtps").textContent = formatMetric(status.liveDtps);
+  if ($("deathsAndWipes")) $("deathsAndWipes").textContent = `${status.deaths ?? 0} / ${status.wipes ?? 0}`;
+  if ($("pullsSummary")) $("pullsSummary").textContent = `${status.pullsCount ?? 0} (${status.bossKills ?? 0} / ${status.wipes ?? 0})`;
+  if ($("totalDamage")) $("totalDamage").textContent = formatMetric(status.totalDamage);
+  if ($("totalHealing")) $("totalHealing").textContent = formatMetric(status.totalHealing);
 
+  // Replay progress
   const replaying = status.replayProgress !== null;
   $("replayWrap").style.display = replaying ? "block" : "none";
-  if (replaying) $("replay").value = status.replayProgress;
+  if (replaying) {
+    $("replay").value = status.replayProgress;
+    if ($("replayPercent")) $("replayPercent").textContent = `${status.replayProgress}%`;
+  }
+
+  // Diagnostics Console
+  if ($("logConsole") && Array.isArray(status.logs)) {
+    const consoleEl = $("logConsole");
+    const wasScrolledToBottom = consoleEl.scrollHeight - consoleEl.clientHeight <= consoleEl.scrollTop + 20;
+    consoleEl.innerHTML = status.logs.map((line) => `<p>${line.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`).join("");
+    if (wasScrolledToBottom) {
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+  }
 
   const busy = status.mode !== "idle";
   $("startLive").disabled = busy;
