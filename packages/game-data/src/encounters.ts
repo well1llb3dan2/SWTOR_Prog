@@ -392,7 +392,7 @@ const SNV = operation("snv", [
     id: "snv_titan_6",
     name: "Titan 6",
     bossNames: ["titan 6"],
-    adds: ["Titan Air-Strike Drone"],
+    adds: ["Titan Air-Strike Drone", "Titan Probe"],
     phases: [
       p(1, "Ground Barrage & Missile Drops", "Rock Hiding", "Encounter start"),
       p(2, "Launch Sequence", "Intermission", "Titan launches into the sky"),

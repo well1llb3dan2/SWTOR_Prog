@@ -176,6 +176,11 @@ describe("isEncounterCleared", () => {
 });
 
 describe("phase and entity resolution", () => {
+  it("classifies Titan Probe as a Titan 6 mechanic", () => {
+    const encounter = ENCOUNTERS_BY_ID.get("snv_titan_6")!;
+    expect(classifyEncounterEntity(encounter, "Titan Probe")).toBe("mechanic");
+  });
+
   it("keeps catalogued mechanics inside the matched boss encounter", () => {
     const encounter = ENCOUNTERS_BY_ID.get("snv_dashroode")!;
     expect(classifyEncounterEntity(encounter, "Dash'Roode")).toBe("boss");

@@ -13,7 +13,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.2.8";
+const CLIENT_VERSION = "0.2.9";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
