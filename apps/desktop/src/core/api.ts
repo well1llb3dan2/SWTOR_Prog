@@ -1,4 +1,4 @@
-import type { LivePullState, BossFightSummary } from "@swtor/analytics";
+import type { LivePullState, BossFightSummary, TrashEncounterSummary } from "@swtor/analytics";
 
 export interface ApiHealth {
   status: string;
@@ -162,6 +162,7 @@ export async function reportProgressionPull(
   localCharacterName: string,
   serverId?: string | null,
   fetchImpl: typeof fetch = fetch,
+  logFileName?: string | null,
 ): Promise<{ accepted: boolean; encounterName: string; outcome: string }> {
   const baseUrl = normalizeBaseUrl(serverUrl);
   const url = `${baseUrl}/api/progression/ingest`;
@@ -190,6 +191,7 @@ export async function reportProgressionPull(
         outcome,
         characterName: localCharacterName,
         serverId: serverId ?? undefined,
+        logFileName: logFileName ?? undefined,
         difficulty: fight.difficulty ?? undefined,
         occurredAt,
         details: {
@@ -204,6 +206,42 @@ export async function reportProgressionPull(
     throw new Error(body.error ?? `Progression pull reporting failed (${response.status}) at ${url}`);
   }
   return { accepted: true, encounterName, outcome };
+}
+
+export async function reportTrashEncounter(
+  serverUrl: string,
+  token: string,
+  fight: TrashEncounterSummary,
+  localCharacterName: string,
+  serverId?: string | null,
+  fetchImpl: typeof fetch = fetch,
+  logFileName?: string | null,
+): Promise<void> {
+  const url = `${normalizeBaseUrl(serverUrl)}/api/progression/ingest`;
+  const encounterId = `trash:${fight.enemy.instanceId}`;
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-swtor-prog-token": token } : {}) },
+    body: JSON.stringify({
+      schema: "progression-event",
+      version: "2.0",
+      guildId: "default",
+      generatedAt: new Date().toISOString(),
+      source: "SWTOR_Prog",
+      visibility: "guild",
+      event: {
+        encounterId,
+        encounterName: fight.enemy.name,
+        outcome: fight.outcome,
+        characterName: localCharacterName,
+        serverId: serverId ?? undefined,
+        logFileName: logFileName ?? undefined,
+        occurredAt: new Date(fight.endedAt).toISOString(),
+        details: { trashFight: fight },
+      },
+    }),
+  });
+  if (!response.ok) throw new Error(`Trash encounter reporting failed (${response.status}) at ${url}`);
 }
 
 export async function fetchApiHealth(

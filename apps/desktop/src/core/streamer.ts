@@ -1,6 +1,6 @@
 import { open } from "node:fs/promises";
 import { LogParser, parseLine, parseLogFileName } from "@swtor/parser";
-import { CombatSession, type LivePullState, type PullSummary, type BossFightSummary } from "@swtor/analytics";
+import { CombatSession, type LivePullState, type PullSummary, type BossFightSummary, type TrashEncounterSummary } from "@swtor/analytics";
 import type { CombatEvent } from "@swtor/shared";
 import { LogTailer, type TailerOptions } from "./tailer.js";
 import type { LogFileInfo } from "./logDirectory.js";
@@ -99,7 +99,8 @@ export interface LogStreamerOptions {
   onLog?: (message: string, level?: "info" | "warn" | "error") => void;
   onSnapshot?: (snapshot: LivePullState | null, inCombat: boolean) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
-  onPullCompleted?: (fight: BossFightSummary, characterName: string, serverId: string | null) => void;
+  onPullCompleted?: (fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null) => void;
+  onTrashCompleted?: (fight: TrashEncounterSummary, characterName: string, serverId: string | null, logFileName: string | null) => void;
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
 }
 
@@ -111,7 +112,8 @@ export class LogStreamer {
   readonly #onLog: ((message: string, level?: "info" | "warn" | "error") => void) | undefined;
   readonly #onSnapshot: ((snapshot: LivePullState | null, inCombat: boolean) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
-  readonly #onPullCompleted: ((fight: BossFightSummary, characterName: string, serverId: string | null) => void) | undefined;
+  readonly #onPullCompleted: ((fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null) => void) | undefined;
+  readonly #onTrashCompleted: ((fight: TrashEncounterSummary, characterName: string, serverId: string | null, logFileName: string | null) => void) | undefined;
 
   #parser: LogParser | null = null;
   #combat: CombatSession | null = null;
@@ -128,6 +130,8 @@ export class LogStreamer {
   #detectedCharacterName: string | null = null;
   #characterReported = false;
   #activeBoss: string | null = null;
+  #activeTargetAt = 0;
+  #lastEventTimestamp = 0;
   #lastPullOutcome: string | null = null;
   #recentTimestamps: number[] = [];
   #lastSnapshotSentAt = 0;
@@ -156,6 +160,7 @@ export class LogStreamer {
     this.#onSnapshot = options.onSnapshot;
     this.#onCharacterDetected = options.onCharacterDetected;
     this.#onPullCompleted = options.onPullCompleted;
+    this.#onTrashCompleted = options.onTrashCompleted;
 
     this.#tailer = options.directory
       ? new LogTailer(options.directory, {
@@ -177,7 +182,9 @@ export class LogStreamer {
       detectedCharacter: this.#detectedCharacterName,
       discipline: this.#discipline,
       combatStyle: this.#combatStyle,
-      activeBoss: this.#activeBoss,
+      activeBoss: this.#activeTargetAt > 0 && this.#lastEventTimestamp - this.#activeTargetAt <= 10_000
+        ? this.#activeBoss
+        : null,
       lastPullOutcome: this.#lastPullOutcome,
       liveDps: this.#liveDps,
       liveHps: this.#liveHps,
@@ -299,6 +306,8 @@ export class LogStreamer {
     this.#detectedCharacterName = null;
     this.#characterReported = false;
     this.#activeBoss = null;
+    this.#activeTargetAt = 0;
+    this.#lastEventTimestamp = 0;
     this.#lastPullOutcome = null;
     this.#eventsParsed = 0;
     this.#totalEvents = null;
@@ -327,9 +336,10 @@ export class LogStreamer {
     this.#combat = new CombatSession({
       onPullStart: (live) => {
         const isBoss = live.encounter !== null || live.boss?.isLikelyBoss === true;
-        this.#activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Combat Pull";
+        this.#activeBoss = null;
+        this.#activeTargetAt = 0;
         if (isBoss) {
-          this.#onLog?.(`Combat engaged: ${this.#activeBoss} (${live.difficulty ?? "Story"})`);
+          this.#onLog?.(`Combat engaged (${live.difficulty ?? "Story"})`);
         } else {
           this.#onLog?.(`Combat engaged: ${this.#activeBoss}`);
         }
@@ -338,12 +348,12 @@ export class LogStreamer {
       },
       onPullEnd: (pull) => {
         this.#activeBoss = null;
-        this.#pullsCount += 1;
+        const isBoss = pull.bossFight !== null;
+        if (isBoss && pull.durationMs >= 10_000) this.#pullsCount += 1;
         this.#raidDeaths += pull.deaths.length;
         const localDied = pull.deaths.some((d) => d.name === this.#detectedCharacterName);
         if (localDied) this.#personalDeaths += 1;
 
-        const isBoss = pull.encounter !== null || pull.boss?.isLikelyBoss === true;
         if (isBoss) {
           if (pull.outcome === "kill") this.#bossKills += 1;
           else if (pull.outcome === "wipe") this.#bossWipes += 1;
@@ -354,13 +364,26 @@ export class LogStreamer {
         if (hasCombatData) {
           const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Combat Pull";
           const durationSec = Math.round(pull.durationMs / 1000);
+          const characterName = this.#detectedCharacterName ?? "Unknown Character";
           this.#lastPullOutcome = `${bossName} (${pull.outcome})`;
           if (isBoss) {
             this.#onLog?.(`👑 Boss Encounter: ${bossName} (${pull.outcome.toUpperCase()}) in ${durationSec}s [Raid Deaths: ${pull.deaths.length}]. Syncing to Merlin...`);
-            const characterName = this.#detectedCharacterName ?? "Unknown Character";
-            if (pull.bossFight !== null) this.#onPullCompleted?.(pull.bossFight, characterName, this.#serverId);
+            if (pull.bossFight !== null) this.#onPullCompleted?.(pull.bossFight, characterName, this.#serverId, this.#fileName);
           } else {
             this.#onLog?.(`⚔️ Trash clear: ${bossName} in ${durationSec}s [Deaths: ${pull.deaths.length}].`);
+            for (const enemy of pull.enemyTimelines.filter((entry) => entry.players.length > 0)) {
+              this.#onTrashCompleted?.({
+                id: `${pull.id}:${enemy.instanceId}`,
+                startedAt: enemy.engagedAt ?? enemy.firstSeenAt,
+                endedAt: enemy.diedAt ?? pull.endedAt,
+                durationMs: Math.max(0, (enemy.diedAt ?? pull.endedAt) - (enemy.engagedAt ?? enemy.firstSeenAt)),
+                zone: pull.zone,
+                difficulty: pull.difficulty,
+                groupSize: pull.groupSize,
+                enemy,
+                outcome: enemy.diedAt === null ? pull.outcome : "kill",
+              }, characterName, this.#serverId, this.#fileName);
+            }
           }
         }
         this.#onStatus?.(this.status);
@@ -417,6 +440,17 @@ export class LogStreamer {
   #processEvents(events: CombatEvent[]): void {
     for (const event of events) {
       if (event.type === "unknown") this.#unknownLines += 1;
+      this.#lastEventTimestamp = Math.max(this.#lastEventTimestamp, event.timestamp);
+
+      if (event.type === "damage" && event.source?.kind === "player" && event.source.playerId === this.#localPlayerId && event.target?.kind === "npc") {
+        this.#activeBoss = event.target.name;
+        this.#activeTargetAt = event.timestamp;
+      }
+
+      if (event.type === "target" && event.state === "set" && event.target?.kind === "npc") {
+        this.#activeBoss = event.target.name;
+        this.#activeTargetAt = event.timestamp;
+      }
 
       if (event.type === "areaEntered") {
         if (this.#localPlayerId === null || (event.source?.kind === "player" && event.source.playerId === this.#localPlayerId)) {

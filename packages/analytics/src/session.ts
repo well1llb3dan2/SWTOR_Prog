@@ -1,6 +1,7 @@
 import type { CombatEvent, Difficulty, GroupSize } from "@swtor/shared";
 import { PullAccumulator, type BossThreshold, type PullEndReason } from "./pull.js";
-import type { LivePullState, PullSummary, RosterEntry } from "./types.js";
+import { buildCombatTimeline } from "./operations.js";
+import type { CombatTimelineEntry, LivePullState, PullSummary, RosterEntry } from "./types.js";
 
 export interface CombatSessionOptions {
   /**
@@ -18,6 +19,7 @@ export interface CombatSessionOptions {
    * logging player dies or steps out while the group keeps fighting.
    */
   exitGraceMs?: number;
+  bossCleanupMs?: number;
   /** Pulls shorter than this are treated as stray ticks and discarded. */
   minPullDurationMs?: number;
   /** Controls when the largest engaged NPC is reported as a boss. */
@@ -29,6 +31,7 @@ export interface CombatSessionOptions {
 const DEFAULTS = {
   idleTimeoutMs: 8_000,
   exitGraceMs: 2_500,
+  bossCleanupMs: 3_000,
   minPullDurationMs: 4_000,
   bossThreshold: { playerHealthMultiple: 8, absoluteFloor: 1_000_000 },
 } as const;
@@ -69,6 +72,10 @@ export class CombatSession {
 
   get pulls(): readonly PullSummary[] {
     return this.#completed;
+  }
+
+  get timeline(): readonly CombatTimelineEntry[] {
+    return buildCombatTimeline(this.#completed);
   }
 
   get roster(): readonly RosterEntry[] {
@@ -170,8 +177,9 @@ export class CombatSession {
 
   #expireIdlePull(now: number): void {
     if (this.#current === null) return;
-    const threshold =
-      this.#exitPendingSince === null ? this.#options.idleTimeoutMs : this.#options.exitGraceMs;
+    const threshold = this.#current.hasVictory()
+      ? this.#options.bossCleanupMs
+      : this.#exitPendingSince === null ? this.#options.idleTimeoutMs : this.#options.exitGraceMs;
     if (now - this.#current.lastActivityAt >= threshold) {
       this.#close(this.#current.lastActivityAt, "sustained-silence");
     }

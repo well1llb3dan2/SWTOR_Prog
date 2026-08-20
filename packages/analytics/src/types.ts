@@ -138,6 +138,14 @@ export interface EnemyTimeline {
   mitigationByType?: Record<string, number>;
   deaths: number;
   phases: number[];
+  /** Metrics for characters who damaged this specific enemy. */
+  players: EnemyPlayerMetrics[];
+}
+
+export interface EnemyPlayerMetrics extends ActorRates {
+  firstDamageAt: number;
+  lastDamageAt: number;
+  activeMs: number;
 }
 
 export interface PlayerPhaseMetrics extends ActorRates {
@@ -204,6 +212,22 @@ export interface OperationFightSummary {
   fights: BossFightSummary[];
 }
 
+export interface TrashEncounterSummary {
+  id: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  zone: string | null;
+  difficulty: Difficulty | null;
+  groupSize: GroupSize | null;
+  enemy: EnemyTimeline;
+  outcome: "kill" | "wipe" | "incomplete";
+}
+
+export type CombatTimelineEntry =
+  | { kind: "boss"; startedAt: number; endedAt: number; fight: BossFightSummary }
+  | { kind: "trash"; startedAt: number; endedAt: number; fight: TrashEncounterSummary };
+
 export interface PullSummary {
   id: string;
   index: number;
@@ -222,6 +246,7 @@ export interface PullSummary {
   buckets: MetricBucket[];
   /** Authoritative boss-centric representation of this pull, when catalogued. */
   bossFight: BossFightSummary | null;
+  enemyTimelines: EnemyTimeline[];
 }
 
 export interface LivePullState {

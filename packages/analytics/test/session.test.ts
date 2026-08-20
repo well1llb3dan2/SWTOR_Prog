@@ -327,6 +327,28 @@ describe("pull metrics", () => {
       damageByType: { energy: 80 },
       mitigationByType: { shield: 40 },
     });
+    expect(enemy.players[0]).toMatchObject({ actorId: "1", damage: 80, dps: 80 / 4 });
+  });
+});
+
+describe("enemy timeline", () => {
+  it("keeps character metrics scoped to the enemy they damaged", () => {
+    const otherEnemy = { ...TRASH, instanceId: "3", npcId: "trash-2", name: "Other Mob" };
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, TRASH, 100),
+      damage(2_000, ALLY, TRASH, 300),
+      damage(3_000, LOCAL, otherEnemy, 500),
+      death(5_000, TRASH),
+      death(6_000, otherEnemy),
+    ]);
+    const timelines = pulls.flatMap((pull) => pull.enemyTimelines);
+    const first = timelines.find((enemy) => enemy.name === "Trash Mob")!;
+    const second = timelines.find((enemy) => enemy.name === "Other Mob")!;
+    expect(first.players.map((player) => player.actorId)).toEqual(["1", "2"]);
+    expect(second.players.map((player) => player.actorId)).toEqual(["1"]);
+    expect(first.players.find((player) => player.actorId === "1")?.damage).toBe(100);
+    expect(second.players[0]?.damage).toBe(500);
   });
 });
 

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { autoUpdater } from "electron-updater";
-import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportLiveSnapshot, reportProgressionPull } from "./core/api.js";
+import { fetchApiHealth, fetchApiReports, reportDetectedCharacter, reportLiveSnapshot, reportProgressionPull, reportTrashEncounter } from "./core/api.js";
 import {
   loadSettings,
   redactSettings,
@@ -13,7 +13,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.2.7";
+const CLIENT_VERSION = "0.2.8";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
@@ -170,11 +170,11 @@ function getStreamer(): LogStreamer {
         console.warn("Character reporting to Merlin API encountered:", err);
       }
     },
-    onPullCompleted: async (fight, characterName, serverId) => {
+    onPullCompleted: async (fight, characterName, serverId, logFileName) => {
       try {
         const bossName = fight.encounter.encounterName;
         publish({ detail: `Syncing ${bossName} (${fight.outcome}) to Merlin...` });
-        await reportProgressionPull(settings.serverUrl, settings.token, fight, characterName, serverId);
+        await reportProgressionPull(settings.serverUrl, settings.token, fight, characterName, serverId, undefined, logFileName);
         publish({ detail: `Synced ${bossName} (${fight.outcome}) to Merlin.` });
         appendLog(`Synced ${bossName} (${fight.outcome}) with ${fight.players.length} players to Merlin.`);
       } catch (err) {
@@ -182,6 +182,13 @@ function getStreamer(): LogStreamer {
         publish({ detail: `Pull sync to Merlin failed: ${message}` });
         appendLog(`Pull sync failed: ${message}`);
         console.warn("Pull reporting to Merlin API encountered:", err);
+      }
+    },
+    onTrashCompleted: async (fight, characterName, serverId, logFileName) => {
+      try {
+        await reportTrashEncounter(settings.serverUrl, settings.token, fight, characterName, serverId, undefined, logFileName);
+      } catch (err) {
+        appendLog(`Trash telemetry sync failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });

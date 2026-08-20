@@ -1,4 +1,29 @@
-import type { BossFightSummary, OperationFightSummary, PullSummary } from "./types.js";
+import type { BossFightSummary, CombatTimelineEntry, OperationFightSummary, PullSummary, TrashEncounterSummary } from "./types.js";
+
+export function buildCombatTimeline(pulls: Iterable<PullSummary>): CombatTimelineEntry[] {
+  const entries: CombatTimelineEntry[] = [];
+  for (const pull of pulls) {
+    if (pull.bossFight !== null) {
+      entries.push({ kind: "boss", startedAt: pull.bossFight.startedAt, endedAt: pull.bossFight.endedAt, fight: pull.bossFight });
+      continue;
+    }
+    for (const enemy of pull.enemyTimelines.filter((candidate) => candidate.players.length > 0)) {
+      const fight: TrashEncounterSummary = {
+        id: `${pull.id}:${enemy.instanceId}`,
+        startedAt: enemy.engagedAt ?? enemy.firstSeenAt,
+        endedAt: enemy.diedAt ?? pull.endedAt,
+        durationMs: Math.max(0, (enemy.diedAt ?? pull.endedAt) - (enemy.engagedAt ?? enemy.firstSeenAt)),
+        zone: pull.zone,
+        difficulty: pull.difficulty,
+        groupSize: pull.groupSize,
+        enemy,
+        outcome: enemy.diedAt === null ? pull.outcome : "kill",
+      };
+      entries.push({ kind: "trash", startedAt: fight.startedAt, endedAt: fight.endedAt, fight });
+    }
+  }
+  return entries.sort((a, b) => a.startedAt - b.startedAt || a.endedAt - b.endedAt);
+}
 
 /**
  * Groups only catalogued boss fights into their operation's canonical order.

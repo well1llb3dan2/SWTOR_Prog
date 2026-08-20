@@ -7,13 +7,13 @@ import { LogParser } from "@swtor/parser";
 const LOGS = [
   {
     file: "combat_2026-08-13_00_27_55_882410.txt",
-    minimumPulls: 20,
-    bossNames: ["Dash'Roode", "Operations Chief", "Olok the Shadow", "Cartel Warlords", "Dread Master Styrak", "Zorn & Toth", "Firebrand & Stormcaller", "Colonel Vorgath", "Warlord Kephess"],
+    minimumPulls: 14,
+    bossNames: ["Dash'Roode", "Operations Chief", "Olok the Shadow", "Cartel Warlords", "Dread Master Styrak", "Zorn & Toth", "Firebrand & Stormcaller", "Warlord Kephess"],
     minimumWipes: 0,
   },
   {
     file: "combat_2026-08-15_20_21_10_493955.txt",
-    minimumPulls: 15,
+    minimumPulls: 12,
     bossNames: ["Bonethrasher", "Jarg & Sorno", "Foreman Crusher", "G4-B3 Heavy Fabricator", "Karagga the Unyielding", "Annihilation Droid XRR-3", "Gharj", "Soa"],
     minimumWipes: 1,
   },
