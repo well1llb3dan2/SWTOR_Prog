@@ -59,11 +59,15 @@ function render(status) {
   if ($("totalDamage")) $("totalDamage").textContent = formatMetric(status.totalDamage);
 
   // Replay progress
-  const replaying = status.replayProgress !== null;
+  const derivedReplayProgress = status.mode === "replay" && status.totalEvents > 0
+    ? Math.min(100, Math.round((status.eventsParsed / status.totalEvents) * 100))
+    : null;
+  const replayProgress = status.replayProgress ?? derivedReplayProgress;
+  const replaying = replayProgress !== null;
   $("replayWrap").style.display = replaying ? "block" : "none";
   if (replaying) {
-    $("replay").value = status.replayProgress;
-    if ($("replayPercent")) $("replayPercent").textContent = `${status.replayProgress}%`;
+    $("replay").value = replayProgress;
+    if ($("replayPercent")) $("replayPercent").textContent = `${replayProgress}%`;
   }
 
   // Diagnostics Console

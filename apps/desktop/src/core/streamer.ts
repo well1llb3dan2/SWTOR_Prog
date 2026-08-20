@@ -307,9 +307,11 @@ export class LogStreamer {
     this.#combat = new CombatSession({
       onPullStart: (live) => {
         const isBoss = live.encounter !== null || live.boss?.isLikelyBoss === true;
-        this.#activeBoss = isBoss ? (live.encounter?.encounterName ?? live.boss?.name ?? "Boss Pull") : null;
+        this.#activeBoss = live.encounter?.encounterName ?? live.boss?.name ?? "Combat Pull";
         if (isBoss) {
           this.#onLog?.(`Combat engaged: ${this.#activeBoss} (${live.difficulty ?? "Story"})`);
+        } else {
+          this.#onLog?.(`Combat engaged: ${this.#activeBoss}`);
         }
         this.#onStatus?.(this.status);
         this.#onSnapshot?.(live, true);
@@ -327,15 +329,12 @@ export class LogStreamer {
           else if (pull.outcome === "wipe") this.#bossWipes += 1;
         }
 
-        const hasCombatData =
-          pull.boss !== null ||
-          pull.encounter !== null ||
-          (pull.actors && pull.actors.some((a) => a.damage > 0 || a.healing > 0));
+        const hasCombatData = pull.actors.some((a) => a.damage > 0 || a.healing > 0 || a.damageTaken > 0);
 
         if (hasCombatData) {
-          const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? (isBoss ? "Boss Encounter" : "Trash Clearing");
+          const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Combat Pull";
           const durationSec = Math.round(pull.durationMs / 1000);
-          this.#lastPullOutcome = `${bossName} (${pull.outcome === "kill" ? "Kill" : "Wipe"})`;
+          this.#lastPullOutcome = `${bossName} (${pull.outcome})`;
           if (isBoss) {
             this.#onLog?.(`👑 Boss Encounter: ${bossName} (${pull.outcome.toUpperCase()}) in ${durationSec}s [Raid Deaths: ${pull.deaths.length}]. Syncing to Merlin...`);
             const characterName = this.#detectedCharacterName ?? "Unknown Character";
@@ -442,7 +441,7 @@ export class LogStreamer {
     if (events.length > 0 && this.#combat) {
       const now = events[events.length - 1]!.timestamp;
       const live = this.#combat.current(now);
-      if (live && live.actors.length > 0) {
+      if (live) {
         const localActor = live.actors.find((a) => a.name === this.#detectedCharacterName) ?? live.actors[0];
         if (localActor) {
           this.#liveDps = Math.round(localActor.dps);
