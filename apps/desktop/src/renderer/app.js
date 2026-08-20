@@ -25,9 +25,9 @@ function render(status) {
   if (typeof status.revision === "number" && status.revision < latestRevision) return;
   if (typeof status.revision === "number") latestRevision = status.revision;
   if ($("statusRevision")) $("statusRevision").textContent = `r${status.revision ?? "?"}`;
-  $("dot").className = `dot ${status.connection}`;
-  $("connection").textContent = status.connection;
-  $("detail").textContent = status.detail ?? "";
+  if ($("dot")) $("dot").className = `dot ${status.connection}`;
+  if ($("connection")) $("connection").textContent = status.connection;
+  if ($("detail")) $("detail").textContent = status.detail ?? "";
 
   // Character & Boss State
   if ($("detectedCharacter")) {
@@ -44,10 +44,10 @@ function render(status) {
   }
 
   // File & Zone
-  $("fileName").textContent = status.fileName ?? "—";
-  $("zone").textContent = status.zone ?? "—";
-  $("rate").textContent = number.format(status.eventsPerSecond ?? 0);
-  $("parsed").textContent = number.format(status.eventsParsed ?? 0);
+  if ($("fileName")) $("fileName").textContent = status.fileName ?? "—";
+  if ($("zone")) $("zone").textContent = status.zone ?? "—";
+  if ($("rate")) $("rate").textContent = number.format(status.eventsPerSecond ?? 0);
+  if ($("parsed")) $("parsed").textContent = number.format(status.eventsParsed ?? 0);
   if ($("totalEvents")) {
     $("totalEvents").textContent = status.totalEvents ? number.format(status.totalEvents) : "—";
   }
@@ -73,7 +73,7 @@ function render(status) {
     : null;
   const replayProgress = status.replayProgress ?? derivedReplayProgress;
   const replaying = replayProgress !== null;
-  $("replayWrap").style.display = replaying ? "block" : "none";
+  if ($("replayWrap")) $("replayWrap").style.display = replaying ? "block" : "none";
   if (replaying) {
     $("replay").value = replayProgress;
     if ($("replayPercent")) $("replayPercent").textContent = `${replayProgress}%`;
@@ -90,9 +90,9 @@ function render(status) {
   }
 
   const busy = status.mode !== "idle";
-  $("startLive").disabled = busy;
-  $("pickReplay").disabled = busy;
-  $("stop").disabled = !busy;
+  if ($("startLive")) $("startLive").disabled = busy;
+  if ($("pickReplay")) $("pickReplay").disabled = busy;
+  if ($("stop")) $("stop").disabled = !busy;
 }
 
 function showError(result) {
