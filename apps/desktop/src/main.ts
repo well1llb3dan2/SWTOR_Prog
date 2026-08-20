@@ -13,7 +13,7 @@ import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
 
-const CLIENT_VERSION = "0.2.5";
+const CLIENT_VERSION = "0.2.6";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
@@ -106,7 +106,8 @@ function publish(patch: Partial<AppStatus> = {}): void {
   Object.assign(status, patch);
   status.revision += 1;
   status.detail = status.detail ?? `Status update ${status.revision}`;
-  window?.webContents.send("status", status);
+  const snapshot = { ...status, logs: [...status.logs] };
+  window?.webContents.send("status", snapshot);
 }
 
 function appendLog(message: string): void {
@@ -273,7 +274,7 @@ app.whenReady().then(async () => {
   createWindow();
 
   ipcMain.handle("settings:get", () => redactSettings(settings));
-  ipcMain.handle("status:get", () => ({ ...status }));
+  ipcMain.handle("status:get", () => ({ ...status, logs: [...status.logs] }));
 
   ipcMain.handle("settings:save", async (_event, incoming: Partial<DesktopSettings>) => {
     settings = {
