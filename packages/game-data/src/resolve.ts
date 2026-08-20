@@ -44,6 +44,26 @@ export function classifyEncounterEntity(encounter: Encounter, name: string): Enc
   return "unknown";
 }
 
+/**
+ * Classifies against the full catalog when no specific encounter has been
+ * resolved yet (for example, standalone trash timeline rows).
+ */
+export function classifyCatalogEntity(name: string): EncounterEntityRole {
+  const value = normalise(name);
+  let boss = false;
+  let mechanic = false;
+
+  for (const encounter of ENCOUNTERS) {
+    if (!boss && encounter.bossNames.some((candidate) => normalise(candidate) === value)) boss = true;
+    if (!mechanic && encounter.adds.some((candidate) => normalise(candidate) === value || value.includes(normalise(candidate)))) mechanic = true;
+    if (boss && mechanic) break;
+  }
+
+  if (mechanic) return "mechanic";
+  if (boss) return "boss";
+  return "unknown";
+}
+
 /** Resolves the highest phase supported by observed HP or named combat evidence. */
 export function resolveEncounterPhase(encounter: Encounter, query: PhaseEvidenceQuery): number {
   if (encounter.phases.length === 0) return 1;

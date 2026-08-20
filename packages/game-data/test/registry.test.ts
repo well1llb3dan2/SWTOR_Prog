@@ -4,6 +4,7 @@ import {
   ENCOUNTERS_BY_ID,
   OPERATIONS,
   isEncounterCleared,
+  classifyCatalogEntity,
   classifyEncounterEntity,
   resolveEncounterPhase,
   resolveEncounter,
@@ -176,6 +177,12 @@ describe("isEncounterCleared", () => {
 });
 
 describe("phase and entity resolution", () => {
+  it("classifies Dustclaw names from the global catalog", () => {
+    expect(classifyCatalogEntity("Dustclaw Alpha")).toBe("mechanic");
+    expect(classifyCatalogEntity("Dustclaw Ravager")).toBe("mechanic");
+    expect(classifyCatalogEntity("Dustclaw Packling")).toBe("mechanic");
+  });
+
   it("classifies Titan Probe as a Titan 6 mechanic", () => {
     const encounter = ENCOUNTERS_BY_ID.get("snv_titan_6")!;
     expect(classifyEncounterEntity(encounter, "Titan Probe")).toBe("mechanic");

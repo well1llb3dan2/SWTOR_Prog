@@ -1,4 +1,4 @@
-import { classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase } from "@swtor/game-data";
+import { classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import {
   isNpc,
@@ -753,7 +753,7 @@ export class PullAccumulator {
     const all = [...this.#enemies.values()];
     return all.map((enemy) => ({
       ...enemy,
-      role: "unknown" as const,
+      role: classifyCatalogEntity(enemy.name),
       players: [...enemy.players.values()].map((player): EnemyPlayerMetrics => ({
         ...this.#rateValues([player.totals], Math.max(1, (enemy.diedAt ?? this.#lastActivityAt) - player.firstDamageAt))[0]!,
         firstDamageAt: player.firstDamageAt,

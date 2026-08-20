@@ -350,6 +350,17 @@ describe("enemy timeline", () => {
     expect(first.players.find((player) => player.actorId === "1")?.damage).toBe(100);
     expect(second.players[0]?.damage).toBe(500);
   });
+
+  it("classifies catalogued standalone trash as mechanics", () => {
+    const dustclaw = { ...TRASH, name: "Dustclaw Ravager", npcId: "dustclaw", instanceId: "dustclaw-1" };
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, dustclaw, 400),
+      death(5_000, dustclaw),
+    ]);
+    const timeline = pulls[0]!.enemyTimelines.find((enemy) => enemy.name === "Dustclaw Ravager")!;
+    expect(timeline.role).toBe("mechanic");
+  });
 });
 
 describe("event-driven phase intervals", () => {
