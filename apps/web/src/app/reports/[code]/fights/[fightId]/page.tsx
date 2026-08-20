@@ -27,16 +27,15 @@ export default async function FightPage({
   const fight = report.fights.find((f) => f.fightId === id);
   if (fight === undefined) notFound();
 
-  // The stored actor totals use the analytics field names, not the wire ones.
-  const actors = fight.actors.map((actor) => ({
+  const actors = fight.players.map((actor) => ({
     ...actor,
     totalDamage: actor.damage,
     totalHealing: actor.healing,
     totalDamageTaken: actor.damageTaken,
   }));
-  const totalDamage = fight.actors.reduce((sum, actor) => sum + actor.damage, 0);
-  const totalHealing = fight.actors.reduce((sum, actor) => sum + actor.healing, 0);
-  const maxDamage = fight.actors.reduce((max, actor) => Math.max(max, actor.damage), 0);
+  const totalDamage = fight.players.reduce((sum, actor) => sum + actor.damage, 0);
+  const totalHealing = fight.players.reduce((sum, actor) => sum + actor.healing, 0);
+  const maxDamage = fight.players.reduce((max, actor) => Math.max(max, actor.damage), 0);
 
   return (
     <main className="space-y-6">
@@ -48,12 +47,12 @@ export default async function FightPage({
           ← {report.zone ?? "Report"}
         </Link>
         <h1 className="mt-1 text-2xl uppercase">
-          {fight.encounter?.encounterName ?? fight.boss?.name ?? "Trash pull"}
+          {fight.encounter.encounterName}
         </h1>
         <p className="mt-1 text-xs text-[var(--color-muted)]">
           Pull {fight.fightId} · {formatDuration(fight.durationMs)} · {fight.outcome}
-          {fight.boss !== null && fight.outcome !== "kill"
-            ? ` · boss ended at ${formatPercent(fight.boss.hpPercent, 1)}`
+          {fight.outcome !== "kill" && fight.bossEntities[0]
+            ? ` · boss ended at ${formatPercent(fight.bossEntities[0].maxHp && fight.bossEntities[0].finalHp !== null ? (fight.bossEntities[0].finalHp / fight.bossEntities[0].maxHp) * 100 : null, 1)}`
             : ""}
         </p>
       </header>

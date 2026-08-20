@@ -128,7 +128,7 @@ export default function LivePage({ params }: { params: Promise<{ sessionId: stri
                   key={`${pull.reportCode}-${pull.fightId}`}
                   className="flex items-center justify-between gap-2 px-3 py-2 text-[11px] sm:px-4 sm:py-2.5 sm:text-sm"
                 >
-                  <span className="truncate">{pull.encounter?.encounterName ?? "Trash pull"}</span>
+                  <span className="truncate">{pull.bossFight.encounter.encounterName}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="tabular text-[10px] text-[var(--color-muted)] sm:text-xs">
                       {formatDuration(pull.durationMs)}
@@ -137,14 +137,14 @@ export default function LivePage({ params }: { params: Promise<{ sessionId: stri
                       className="text-[10px] uppercase tracking-[0.12em] sm:text-xs"
                       style={{
                         color:
-                          pull.outcome === "kill"
+                          pull.bossFight.outcome === "kill"
                             ? "var(--color-republic)"
-                            : pull.outcome === "wipe"
+                            : pull.bossFight.outcome === "wipe"
                               ? "#f87171"
                               : "var(--color-muted)",
                       }}
                     >
-                      {pull.outcome}
+                      {pull.bossFight.outcome}
                     </span>
                   </span>
                 </li>

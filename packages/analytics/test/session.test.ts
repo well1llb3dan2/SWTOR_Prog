@@ -36,6 +36,24 @@ const TRASH = {
   hp: 4_000,
   maxHp: 4_000,
 } as const;
+const SOA = {
+  kind: "npc",
+  name: "Soa",
+  npcId: "soa",
+  instanceId: "soa-1",
+  position: null,
+  hp: 8_000_000,
+  maxHp: 10_000_000,
+} as const;
+const PYlon = {
+  kind: "npc",
+  name: "Ancient Pylon Defense System",
+  npcId: "pylon",
+  instanceId: "pylon-1",
+  position: null,
+  hp: 1_000_000,
+  maxHp: 1_000_000,
+} as const;
 
 function magnitude(amount: number, effective = amount): MagnitudeValue {
   return {
@@ -169,13 +187,14 @@ describe("fight boundaries", () => {
     expect(session.pulls[0]!.durationMs).toBe(5_000);
   });
 
-  it("closes immediately once the last engaged enemy dies", () => {
+  it("closes once the engaged fight concludes", () => {
     const session = new CombatSession();
     session.push(areaEntered(0));
     session.push(damage(1_000, LOCAL, TRASH));
     session.push(damage(2_000, ALLY, TRASH));
     session.push(damage(5_000, LOCAL, TRASH));
     session.push(death(5_000, TRASH));
+    session.end();
 
     expect(session.current(5_000)).toBeNull();
     expect(session.pulls).toHaveLength(1);
@@ -263,9 +282,141 @@ describe("pull metrics", () => {
     expect(pull.buckets[0]!.damage["1"]).toBe(20_000);
     expect(pull.buckets[1]!.damage["1"]).toBe(10_000);
   });
+
+  it("captures critical, mitigation, absorption, threat, overkill, and damage type details", () => {
+    const detailedDamage: CombatEvent = {
+      ...base(1_000),
+      type: "damage",
+      source: LOCAL,
+      target: { ...BOSS, hp: 50 },
+      threat: 55,
+      value: {
+        ...magnitude(120, 80),
+        critical: true,
+        damageType: "energy",
+        mitigation: "shield",
+        absorbed: 40,
+      },
+    };
+    const detailedPull = analyzeEvents([
+      areaEntered(0),
+      detailedDamage,
+      death(5_000, BOSS),
+    ])[0]!;
+    const actor = detailedPull.actors.find((entry) => entry.actorId === LOCAL.playerId)!;
+    const enemy = detailedPull.bossFight!.bossEntities[0]!;
+
+    expect(actor).toMatchObject({
+      criticalHits: 1,
+      criticalDamage: 80,
+      mitigatedDamage: 40,
+      absorbed: 0,
+      overkill: 30,
+      threat: 55,
+      damageByType: { energy: 80 },
+      mitigationByType: { shield: 40 },
+    });
+    expect(enemy).toMatchObject({
+      damageTaken: 80,
+      absorbed: 40,
+      criticalHits: 1,
+      criticalDamage: 80,
+      mitigatedDamage: 40,
+      overkill: 30,
+      threat: 55,
+      damageByType: { energy: 80 },
+      mitigationByType: { shield: 40 },
+    });
+  });
+});
+
+describe("event-driven phase intervals", () => {
+  it("starts and ends phases at observed HP transitions", () => {
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, { ...SOA, hp: 8_000_000 }, 1_000),
+      damage(5_000, LOCAL, { ...SOA, hp: 7_400_000 }, 2_000),
+      damage(9_000, LOCAL, { ...SOA, hp: 2_900_000 }, 3_000),
+      death(12_000, SOA),
+    ]);
+
+    const phases = pulls[0]!.bossFight!.phases;
+    expect(phases.map((phase) => phase.order)).toEqual([1, 2, 3]);
+    expect(phases.map((phase) => phase.startedAt)).toEqual([1_000, 5_000, 9_000]);
+    expect(phases.map((phase) => phase.endedAt)).toEqual([5_000, 9_000, 12_000]);
+    expect(phases[1]!.triggerEvidence?.kind).toBe("phase-transition");
+    expect(phases[2]!.triggerEvidence?.timestamp).toBe(9_000);
+    expect(phases.map((phase) => phase.players[0]?.damage)).toEqual([1_000, 2_000, 3_000]);
+    expect(phases.map((phase) => phase.players[0]?.activeMs)).toEqual([0, 0, 0]);
+  });
+});
+
+describe("encounter victory conditions", () => {
+  it("completes a puzzle encounter from explicit victory evidence", () => {
+    const puzzleVictory: CombatEvent = {
+      ...base(5_000),
+      type: "ability",
+      source: LOCAL,
+      target: PYlon,
+      ability: { id: "puzzle", name: "Puzzle Solved / Four Rings Aligned" },
+      phase: "activate",
+    };
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, PYlon),
+      puzzleVictory,
+      damage(6_000, LOCAL, PYlon),
+    ]);
+
+    expect(pulls).toHaveLength(1);
+    expect(pulls[0]!.outcome).toBe("kill");
+    expect(pulls[0]!.bossFight?.terminalEvidence?.kind).toBe("victory-event");
+    expect(pulls[0]!.bossFight?.bossEntities[0]?.diedAt).toBeNull();
+  });
 });
 
 describe("wipes", () => {
+  it("keeps a successful kill when a player dies during the encounter", () => {
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, BOSS),
+      damage(2_000, BOSS, LOCAL, 500_000),
+      death(3_000, LOCAL),
+      damage(4_000, ALLY, BOSS),
+      death(5_000, BOSS),
+    ]);
+
+    expect(pulls[0]!.outcome).toBe("kill");
+    expect(pulls[0]!.bossFight?.outcome).toBe("kill");
+    expect(pulls[0]!.bossFight?.terminalEvidence?.kind).toBe("required-targets-dead");
+  });
+
+  it("reports a raid wipe even when the local player never dies", () => {
+    const session = new CombatSession({ idleTimeoutMs: 10_000 });
+    session.push(areaEntered(0));
+    session.push(damage(1_000, LOCAL, BOSS));
+    session.push(damage(2_000, ALLY, BOSS));
+    session.push(damage(5_000, LOCAL, BOSS));
+    session.push(death(6_000, ALLY));
+    session.flush(16_001);
+
+    expect(session.pulls[0]!.outcome).toBe("wipe");
+    expect(session.pulls[0]!.deaths.map((entry) => entry.name)).toEqual(["Ally"]);
+    expect(session.pulls[0]!.bossFight?.terminalEvidence?.kind).toBe("raid-wipe");
+  });
+
+  it("classifies sustained boss silence as an encounter reset", () => {
+    const session = new CombatSession({ idleTimeoutMs: 10_000 });
+    session.push(areaEntered(0));
+    session.push(damage(1_000, LOCAL, BOSS));
+    session.push(damage(5_000, LOCAL, BOSS));
+    session.flush(16_001);
+
+    expect(session.pulls[0]!.outcome).toBe("wipe");
+    expect(session.pulls[0]!.deaths).toHaveLength(0);
+    expect(session.pulls[0]!.bossFight?.terminalEvidence?.kind).toBe("encounter-reset");
+  });
+
   it("reports a wipe when every participant dies and the boss lives", () => {
     const pulls = analyzeEvents([
       areaEntered(0),

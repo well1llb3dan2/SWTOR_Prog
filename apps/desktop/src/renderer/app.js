@@ -52,10 +52,11 @@ function render(status) {
   if ($("liveDps")) $("liveDps").textContent = formatMetric(status.liveDps);
   if ($("liveHps")) $("liveHps").textContent = formatMetric(status.liveHps);
   if ($("liveDtps")) $("liveDtps").textContent = formatMetric(status.liveDtps);
-  if ($("deathsAndWipes")) $("deathsAndWipes").textContent = `${status.deaths ?? 0} / ${status.wipes ?? 0}`;
-  if ($("pullsSummary")) $("pullsSummary").textContent = `${status.pullsCount ?? 0} (${status.bossKills ?? 0} / ${status.wipes ?? 0})`;
+  if ($("bossKillsAndWipes")) $("bossKillsAndWipes").textContent = `${status.bossKills ?? 0} / ${status.bossWipes ?? 0}`;
+  if ($("personalDeaths")) $("personalDeaths").textContent = `${status.personalDeaths ?? 0}`;
+  if ($("raidDeaths")) $("raidDeaths").textContent = `${status.raidDeaths ?? 0}`;
+  if ($("pullsSummary")) $("pullsSummary").textContent = `${status.pullsCount ?? 0} (${status.bossKills ?? 0} Kills / ${status.bossWipes ?? 0} Wipes)`;
   if ($("totalDamage")) $("totalDamage").textContent = formatMetric(status.totalDamage);
-  if ($("totalHealing")) $("totalHealing").textContent = formatMetric(status.totalHealing);
 
   // Replay progress
   const replaying = status.replayProgress !== null;

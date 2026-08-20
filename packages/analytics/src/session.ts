@@ -1,5 +1,5 @@
 import type { CombatEvent, Difficulty, GroupSize } from "@swtor/shared";
-import { PullAccumulator, type BossThreshold } from "./pull.js";
+import { PullAccumulator, type BossThreshold, type PullEndReason } from "./pull.js";
 import type { LivePullState, PullSummary, RosterEntry } from "./types.js";
 
 export interface CombatSessionOptions {
@@ -61,6 +61,7 @@ export class CombatSession {
   #current: PullAccumulator | null = null;
   #pullIndex = 0;
   #exitPendingSince: number | null = null;
+  #lastClosedAt: number | null = null;
 
   constructor(options: CombatSessionOptions = {}) {
     this.#options = { ...DEFAULTS, ...options };
@@ -100,7 +101,7 @@ export class CombatSession {
     switch (event.type) {
       case "areaEntered":
         // Zoning always ends a fight, and never begins one.
-        this.#close(this.#current?.lastActivityAt ?? event.timestamp);
+        this.#close(this.#current?.lastActivityAt ?? event.timestamp, "stream-ended");
         this.#zone = event.zone.name;
         this.#zoneId = event.zone.id;
         this.#difficulty = event.difficulty;
@@ -137,10 +138,6 @@ export class CombatSession {
     this.#open(event.timestamp);
     this.#exitPendingSince = null;
     this.#current?.add(event);
-
-    if (event.type === "death" && this.#current?.hasClearedAllEngagedNpcs()) {
-      this.#close(event.timestamp);
-    }
   }
 
   /** Lets an idle pull close when the stream has gone quiet. */
@@ -150,7 +147,7 @@ export class CombatSession {
 
   /** Closes any pull still open; call once the log or session ends. */
   end(): void {
-    this.#close(this.#current?.lastActivityAt ?? 0);
+    this.#close(this.#current?.lastActivityAt ?? 0, "stream-ended");
   }
 
   #rememberLocalPlayer(event: CombatEvent): void {
@@ -176,12 +173,13 @@ export class CombatSession {
     const threshold =
       this.#exitPendingSince === null ? this.#options.idleTimeoutMs : this.#options.exitGraceMs;
     if (now - this.#current.lastActivityAt >= threshold) {
-      this.#close(this.#current.lastActivityAt);
+      this.#close(this.#current.lastActivityAt, "sustained-silence");
     }
   }
 
   #open(startedAt: number): void {
     if (this.#current !== null) return;
+    if (this.#lastClosedAt !== null && startedAt - this.#lastClosedAt < 1000) return;
     this.#pullIndex += 1;
     this.#current = new PullAccumulator(
       `${startedAt}-${this.#pullIndex}`,
@@ -193,19 +191,22 @@ export class CombatSession {
         difficulty: this.#difficulty,
         groupSize: this.#groupSize,
         roster: this.#roster,
+        localPlayerId: this.#localPlayerId,
       },
       this.#options.bossThreshold,
     );
     this.#options.onPullStart?.(this.#current.live(startedAt));
   }
 
-  #close(endedAt: number): void {
+  #close(endedAt: number, endReason: PullEndReason): void {
     const pull = this.#current;
     this.#current = null;
     this.#exitPendingSince = null;
     if (pull === null) return;
 
-    const summary = pull.finish(Math.max(endedAt, pull.startedAt));
+    this.#lastClosedAt = endedAt;
+
+    const summary = pull.finish(Math.max(endedAt, pull.startedAt), endReason);
     const meaningful =
       summary.durationMs >= this.#options.minPullDurationMs &&
       summary.actors.some((a) => a.damage > 0);

@@ -1,4 +1,4 @@
-import { isEncounterCleared, resolveEncounter } from "@swtor/game-data";
+import { classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import {
   isNpc,
@@ -6,13 +6,19 @@ import {
   type ActorRates,
   type ActorTotals,
   type BossInfo,
+  type BossFightSummary,
+  type BossPhaseSummary,
   type DeathRecord,
+  type EnemyTimeline,
   type EncounterRef,
   type LivePullState,
+  type LiveBossFightSnapshot,
   type MetricBucket,
+  type PlayerPhaseMetrics,
   type PullOutcome,
   type PullSummary,
   type RosterEntry,
+  type TerminalEvidence,
 } from "./types.js";
 
 export const BUCKET_MS = 10_000;
@@ -34,11 +40,44 @@ interface PullContext {
   difficulty: Difficulty | null;
   groupSize: GroupSize | null;
   roster: ReadonlyMap<string, RosterEntry>;
+  localPlayerId: string | null;
 }
+
+export type PullEndReason = "sustained-silence" | "stream-ended";
 
 interface KillingBlow {
   ability: string | null;
   source: string | null;
+}
+
+interface EnemyState {
+  instanceId: string;
+  npcId: string;
+  name: string;
+  firstSeenAt: number;
+  engagedAt: number | null;
+  lastSeenAt: number;
+  diedAt: number | null;
+  maxHp: number | null;
+  finalHp: number | null;
+  damageTaken: number;
+  damageDealt: number;
+  absorbed: number;
+  criticalHits: number;
+  criticalDamage: number;
+  mitigatedDamage: number;
+  overkill: number;
+  threat: number;
+  damageByType: Record<string, number>;
+  mitigationByType: Record<string, number>;
+  deaths: number;
+  phases: number[];
+}
+
+interface PhaseActorState {
+  totals: ActorTotals;
+  firstActionAt: number;
+  lastActionAt: number;
 }
 
 export interface BossThreshold {
@@ -67,8 +106,20 @@ function emptyTotals(actorId: string, name: string): ActorTotals {
     overhealing: 0,
     damageTaken: 0,
     absorbed: 0,
+    criticalHits: 0,
+    criticalDamage: 0,
+    mitigatedDamage: 0,
+    overkill: 0,
+    threat: 0,
+    damageByType: {},
+    mitigationByType: {},
     deaths: 0,
   };
+}
+
+function increment(map: Record<string, number>, key: string | null, amount: number): void {
+  if (key === null || amount === 0) return;
+  map[key] = (map[key] ?? 0) + amount;
 }
 
 /** Accumulates every metric for a single pull. */
@@ -80,8 +131,13 @@ export class PullAccumulator {
   #lastActivityAt: number;
   readonly #context: PullContext;
   readonly #totals = new Map<string, ActorTotals>();
+  readonly #phaseTotals = new Map<number, Map<string, PhaseActorState>>();
   readonly #buckets = new Map<number, MetricBucket>();
   readonly #npcs = new Map<string, { name: string; maxHp: number; hp: number | null }>();
+  readonly #enemies = new Map<string, EnemyState>();
+  readonly #phaseStartedAt = new Map<number, number>();
+  readonly #phaseEvidence = new Map<number, TerminalEvidence>();
+  #victoryEvidence: TerminalEvidence | null = null;
   readonly #engagedNpcIds = new Set<string>();
   readonly #engagedNpcNames = new Set<string>();
   readonly #deadNpcIds = new Set<string>();
@@ -90,6 +146,7 @@ export class PullAccumulator {
   readonly #lastHitOnPlayer = new Map<string, KillingBlow>();
   readonly #participants = new Set<string>();
   readonly #bossThreshold: BossThreshold;
+  #currentPhaseOrder = 1;
   #peakPlayerMaxHp = 0;
 
   constructor(
@@ -113,22 +170,37 @@ export class PullAccumulator {
 
   add(event: CombatEvent): void {
     this.#observeHealth(event);
+    this.#observeVictoryEvent(event);
 
     switch (event.type) {
       case "damage":
+        this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
         this.#addDamage(
           event.timestamp,
           event.source,
           event.target,
           event.value,
           event.ability?.name ?? null,
+          event.threat,
         );
+        this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
         this.#lastActivityAt = event.timestamp;
         break;
 
       case "heal":
         this.#addHealing(event.timestamp, event.source, event.value);
         this.#lastActivityAt = event.timestamp;
+        break;
+
+      case "applyEffect":
+      case "removeEffect":
+      case "ability":
+        this.#observePhase(
+          event.timestamp,
+          event.target,
+          event.type === "ability" ? event.ability?.name ?? null : null,
+          event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
+        );
         break;
 
       case "death":
@@ -153,6 +225,37 @@ export class PullAccumulator {
       } else {
         existing.hp = actor.hp;
       }
+      const instanceId = actor.instanceId ?? actor.npcId;
+      const enemy = this.#enemies.get(instanceId);
+      if (enemy === undefined) {
+        this.#enemies.set(instanceId, {
+          instanceId,
+          npcId: actor.npcId,
+          name: actor.name,
+          firstSeenAt: event.timestamp,
+          engagedAt: null,
+          lastSeenAt: event.timestamp,
+          diedAt: null,
+          maxHp: actor.maxHp,
+          finalHp: actor.hp,
+          damageTaken: 0,
+          damageDealt: 0,
+          absorbed: 0,
+          criticalHits: 0,
+          criticalDamage: 0,
+          mitigatedDamage: 0,
+          overkill: 0,
+          threat: 0,
+          damageByType: {},
+          mitigationByType: {},
+          deaths: 0,
+          phases: [],
+        });
+      } else {
+        enemy.lastSeenAt = event.timestamp;
+        enemy.finalHp = actor.hp;
+        if (actor.maxHp > (enemy.maxHp ?? 0)) enemy.maxHp = actor.maxHp;
+      }
     }
   }
 
@@ -171,6 +274,28 @@ export class PullAccumulator {
     return totals;
   }
 
+  #phaseTotalsFor(phaseOrder: number, id: string, name: string, timestamp: number): PhaseActorState {
+    let phase = this.#phaseTotals.get(phaseOrder);
+    if (phase === undefined) {
+      phase = new Map<string, PhaseActorState>();
+      this.#phaseTotals.set(phaseOrder, phase);
+    }
+    let state = phase.get(id);
+    if (state === undefined) {
+      state = { totals: emptyTotals(id, name), firstActionAt: timestamp, lastActionAt: timestamp };
+      const roster = this.#context.roster.get(id);
+      if (roster !== undefined) {
+        state.totals.role = roster.role;
+        state.totals.discipline = roster.discipline;
+        state.totals.combatStyle = roster.advancedClass ?? (roster.discipline ? combatStyleForDiscipline(roster.discipline) : null);
+      }
+      phase.set(id, state);
+    } else {
+      state.lastActionAt = timestamp;
+    }
+    return state;
+  }
+
   #bucketFor(timestamp: number): MetricBucket {
     const index = Math.max(0, Math.floor((timestamp - this.startedAt) / BUCKET_MS));
     let bucket = this.#buckets.get(index);
@@ -187,12 +312,40 @@ export class PullAccumulator {
     return bucket;
   }
 
+  #damageDetails(totals: ActorTotals, value: MagnitudeValue, targetHp: number | null, threat: number | null): void {
+    const applied = appliedAmount(value);
+    if (value.critical) {
+      totals.criticalHits = (totals.criticalHits ?? 0) + 1;
+      totals.criticalDamage = (totals.criticalDamage ?? 0) + applied;
+    }
+    totals.mitigatedDamage = (totals.mitigatedDamage ?? 0) + Math.max(0, value.amount - applied);
+    totals.overkill = (totals.overkill ?? 0) + (targetHp === null ? 0 : Math.max(0, applied - targetHp));
+    totals.threat = (totals.threat ?? 0) + (threat ?? 0);
+    increment(totals.damageByType ??= {}, value.damageType, applied);
+    increment(totals.mitigationByType ??= {}, value.mitigation, Math.max(0, value.amount - applied));
+  }
+
+  #enemyDamageDetails(enemy: EnemyState, value: MagnitudeValue, targetHp: number | null, threat: number | null): void {
+    const applied = appliedAmount(value);
+    if (value.critical) {
+      enemy.criticalHits += 1;
+      enemy.criticalDamage += applied;
+    }
+    enemy.mitigatedDamage += Math.max(0, value.amount - applied);
+    enemy.absorbed += value.absorbed ?? 0;
+    enemy.overkill += targetHp === null ? 0 : Math.max(0, applied - targetHp);
+    enemy.threat += threat ?? 0;
+    increment(enemy.damageByType, value.damageType, applied);
+    increment(enemy.mitigationByType, value.mitigation, Math.max(0, value.amount - applied));
+  }
+
   #addDamage(
     timestamp: number,
     source: CombatEvent["source"],
     target: CombatEvent["target"],
     value: MagnitudeValue,
     ability: string | null,
+    threat: number | null,
   ): void {
     const applied = appliedAmount(value);
     const bucket = this.#bucketFor(timestamp);
@@ -203,13 +356,33 @@ export class PullAccumulator {
       this.#participants.add(source.playerId);
       const totals = this.#totalsFor(source.playerId, source.name);
       totals.damage += applied;
+      this.#damageDetails(totals, value, target.hp, threat);
+      const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, source.playerId, source.name, timestamp);
+      phaseState.totals.damage += applied;
+      this.#damageDetails(phaseState.totals, value, target.hp, threat);
       bucket.damage[source.playerId] = (bucket.damage[source.playerId] ?? 0) + applied;
+      const enemy = this.#enemyFor(target, timestamp);
+      enemy.engagedAt ??= timestamp;
+      enemy.damageTaken += applied;
+      this.#enemyDamageDetails(enemy, value, target.hp, threat);
+    }
+
+    if (isNpc(source) && isPlayer(target)) {
+      const enemy = this.#enemyFor(source, timestamp);
+      enemy.engagedAt ??= timestamp;
+      enemy.damageDealt += applied;
+      this.#enemyDamageDetails(enemy, value, target.hp, threat);
     }
 
     if (isPlayer(target)) {
       const totals = this.#totalsFor(target.playerId, target.name);
       totals.damageTaken += applied;
       totals.absorbed += value.absorbed ?? 0;
+      this.#damageDetails(totals, value, target.hp, threat);
+      const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, target.playerId, target.name, timestamp);
+      phaseState.totals.damageTaken += applied;
+      phaseState.totals.absorbed += value.absorbed ?? 0;
+      this.#damageDetails(phaseState.totals, value, target.hp, threat);
       bucket.damageTaken[target.playerId] = (bucket.damageTaken[target.playerId] ?? 0) + applied;
       this.#lastHitOnPlayer.set(target.playerId, {
         ability,
@@ -226,6 +399,9 @@ export class PullAccumulator {
     const totals = this.#totalsFor(source.playerId, source.name);
     totals.healing += applied;
     totals.overhealing += overheal;
+    const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, source.playerId, source.name, timestamp);
+    phaseState.totals.healing += applied;
+    phaseState.totals.overhealing += overheal;
     this.#participants.add(source.playerId);
 
     const bucket = this.#bucketFor(timestamp);
@@ -238,12 +414,18 @@ export class PullAccumulator {
     if (isNpc(victim)) {
       this.#deadNpcIds.add(victim.npcId);
       this.#deadNpcNames.add(victim.name);
+      const enemy = this.#enemyFor(victim, event.timestamp);
+      enemy.diedAt = event.timestamp;
+      enemy.finalHp = 0;
+      enemy.deaths += 1;
       return;
     }
     if (!isPlayer(victim)) return;
 
     const totals = this.#totalsFor(victim.playerId, victim.name);
     totals.deaths += 1;
+    const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, victim.playerId, victim.name, event.timestamp);
+    phaseState.totals.deaths += 1;
 
     const blow = this.#lastHitOnPlayer.get(victim.playerId);
     this.#deaths.push({
@@ -254,6 +436,41 @@ export class PullAccumulator {
       killingBlowAbility: blow?.ability ?? null,
       killingBlowSource: blow?.source ?? null,
     });
+  }
+
+  #enemyFor(actor: Extract<NonNullable<CombatEvent["source"]>, { kind: "npc" }>, timestamp: number): EnemyState {
+    const instanceId = actor.instanceId ?? actor.npcId;
+    let enemy = this.#enemies.get(instanceId);
+    if (enemy === undefined) {
+      enemy = {
+        instanceId,
+        npcId: actor.npcId,
+        name: actor.name,
+        firstSeenAt: timestamp,
+        engagedAt: timestamp,
+        lastSeenAt: timestamp,
+        diedAt: null,
+        maxHp: actor.maxHp,
+        finalHp: actor.hp,
+        damageTaken: 0,
+        damageDealt: 0,
+        absorbed: 0,
+        criticalHits: 0,
+        criticalDamage: 0,
+        mitigatedDamage: 0,
+        overkill: 0,
+        threat: 0,
+        damageByType: {},
+        mitigationByType: {},
+        deaths: 0,
+        phases: [],
+      };
+      this.#enemies.set(instanceId, enemy);
+    }
+    enemy.lastSeenAt = timestamp;
+    enemy.finalHp = actor.hp;
+    if (!enemy.phases.includes(this.#currentPhaseOrder)) enemy.phases.push(this.#currentPhaseOrder);
+    return enemy;
   }
 
   /** Largest engaged NPC by max health; refined by a curated table later. */
@@ -297,16 +514,75 @@ export class PullAccumulator {
       operationId: match.operation.id,
       operationName: match.operation.name,
       isLair: match.operation.isLair,
+      order: match.encounter.order,
       matchedBosses: match.matchedBosses,
+      adds: match.encounter.adds,
       phases: match.encounter.phases,
       victoryEvent: match.encounter.victoryEvent,
-      cleared: isEncounterCleared(match.encounter, this.#deadNpcNames),
+      cleared: isEncounterCleared(match.encounter, this.#deadNpcNames, this.#victoryEvidence !== null),
     };
   }
 
+  #observeVictoryEvent(event: CombatEvent): void {
+    if (this.#victoryEvidence !== null) return;
+    const encounter = this.#encounter();
+    if (encounter === null || /boss defeated|both bosses defeated|all .* defeated/i.test(encounter.victoryEvent)) return;
+
+    const eventNames = [
+      event.ability?.name,
+      event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
+      event.type === "other" ? event.category.name : null,
+    ].filter((name): name is string => name !== null);
+    if (eventNames.length === 0) return;
+
+    const victoryText = encounter.victoryEvent.toLowerCase();
+    const evidenceText = eventNames.join(" ").toLowerCase();
+    const markers = ["puzzle", "solv", "align", "core", "vanquish", "retreat", "teleport", "terminal", "destroy"];
+    const markerMatches = markers.some((marker) => victoryText.includes(marker) && evidenceText.includes(marker));
+    if (!markerMatches) return;
+
+    this.#victoryEvidence = {
+      kind: "victory-event",
+      timestamp: event.timestamp,
+      detail: `Encounter victory evidence observed: ${eventNames.join(" / ")}.`,
+      actorIds: event.source?.kind === "player" ? [event.source.playerId] : [],
+      npcIds: event.target?.kind === "npc" ? [event.target.npcId] : [],
+    };
+  }
+
+  #observePhase(
+    timestamp: number,
+    target: CombatEvent["target"],
+    abilityName: string | null,
+    effectName: string | null,
+  ): void {
+    const encounter = this.#encounter();
+    if (encounter === null || encounter.phases.length === 0) return;
+    const targetHpPercent = isNpc(target) && target.hp !== null && target.maxHp && target.maxHp > 0
+      ? (target.hp / target.maxHp) * 100
+      : null;
+    const order = resolveEncounterPhase(encounter, { bossHpPercent: targetHpPercent, abilityName, effectName });
+    if (!this.#phaseStartedAt.has(1)) this.#phaseStartedAt.set(1, this.startedAt);
+    const previous = Math.max(...this.#phaseStartedAt.keys());
+    if (order <= previous) return;
+    this.#phaseStartedAt.set(order, timestamp);
+    this.#currentPhaseOrder = order;
+    this.#phaseEvidence.set(order, {
+      kind: "phase-transition",
+      timestamp,
+      detail: `Phase ${order} observed from ${abilityName ?? effectName ?? "encounter state"}.`,
+      actorIds: [],
+      npcIds: isNpc(target) ? [target.npcId] : [],
+    });
+  }
+
   #rates(durationMs: number): ActorRates[] {
+    return this.#rateValues(this.#totals.values(), durationMs);
+  }
+
+  #rateValues(totalsList: Iterable<ActorTotals>, durationMs: number): ActorRates[] {
     const seconds = Math.max(durationMs, 1) / 1000;
-    return [...this.#totals.values()]
+    return [...totalsList]
       .map((totals) => {
         let role = totals.role;
         if (!role) {
@@ -335,23 +611,43 @@ export class PullAccumulator {
       .sort((a, b) => b.damage - a.damage);
   }
 
-  #outcome(boss: BossInfo | null, encounter: EncounterRef | null): PullOutcome {
-    // A matched encounter knows exactly what has to die; multi-boss fights such
-    // as the Cartel Warlords are not cleared by felling the biggest target.
+  #phaseRates(phaseOrder: number, durationMs: number): PlayerPhaseMetrics[] {
+    const states = this.#phaseTotals.get(phaseOrder);
+    if (states === undefined) return [];
+    return [...states.values()].map((state) => ({
+      ...this.#rateValues([state.totals], durationMs)[0]!,
+      phaseOrder,
+      activeMs: Math.max(0, state.lastActionAt - state.firstActionAt),
+      firstActionAt: state.firstActionAt,
+      lastActionAt: state.lastActionAt,
+    }));
+  }
+
+  #outcome(boss: BossInfo | null, encounter: EncounterRef | null, endReason: PullEndReason): PullOutcome {
+    // 1. A matched encounter knows exactly what has to die to be victorious.
     if (encounter !== null) {
       if (encounter.cleared) return "kill";
     } else if (boss !== null && this.#deadNpcIds.has(boss.npcId)) {
       return "kill";
     }
 
+    // 2. Wipe detection:
     const died = new Set(this.#deaths.map((d) => d.playerId));
-    const everyoneDied =
-      this.#participants.size > 0 && [...this.#participants].every((id) => died.has(id));
-    if (everyoneDied) return "wipe";
+    const nonLocalParticipants = [...this.#participants].filter((id) => id !== this.#context.localPlayerId);
+    const raidWiped = nonLocalParticipants.length > 0 && nonLocalParticipants.every((id) => died.has(id));
 
-    // A trash pull still counts as a kill when the enemies were cleared and the
-    // raid did not fully wipe, even if no boss was identified for the pull.
+    if (raidWiped) return "wipe";
+
+    // If a boss encounter or strong boss was engaged and did not die, and either players died
+    // or combat ended without victory, it's a wipe.
+    if (encounter !== null || (boss !== null && boss.isLikelyBoss)) {
+      if (endReason === "sustained-silence") return "wipe";
+      return "incomplete";
+    }
+
+    // 3. For trash pulls: killing engaged enemies is a kill, wiping to trash is a wipe
     if (this.#deadNpcIds.size > 0) return "kill";
+    if (died.size > 0) return "wipe";
 
     return "incomplete";
   }
@@ -366,10 +662,121 @@ export class PullAccumulator {
     return this.#engagedNpcIds.size > 0 && [...this.#engagedNpcIds].every((id) => this.#deadNpcIds.has(id));
   }
 
-  finish(endedAt: number): PullSummary {
+  encounter(): EncounterRef | null {
+    return this.#encounter();
+  }
+
+  #enemyTimeline(encounter: EncounterRef): { bosses: EnemyTimeline[]; mechanics: EnemyTimeline[]; unknown: EnemyTimeline[] } {
+    const all = [...this.#enemies.values()].map((enemy) => ({
+      ...enemy,
+      role: classifyEncounterEntity({
+        id: encounter.encounterId,
+        name: encounter.encounterName,
+        operationId: encounter.operationId as never,
+        order: 0,
+        bossNames: encounter.matchedBosses,
+        victoryRequires: [],
+        adds: encounter.adds ?? [],
+        phases: encounter.phases,
+        wipeMechanics: [],
+        victoryEvent: encounter.victoryEvent,
+      }, enemy.name),
+    }));
+    return {
+      bosses: all.filter((enemy) => enemy.role === "boss"),
+      mechanics: all.filter((enemy) => enemy.role === "mechanic"),
+      unknown: all.filter((enemy) => enemy.role === "unknown"),
+    };
+  }
+
+  #bossFight(encounter: EncounterRef | null, endedAt: number, outcome: PullOutcome, endReason: PullEndReason): BossFightSummary | null {
+    if (encounter === null) return null;
+    const durationMs = Math.max(0, endedAt - this.startedAt);
+    const timelines = this.#enemyTimeline(encounter);
+    const terminalEvidence = this.#terminalEvidence(encounter, outcome, endedAt, endReason);
+    const observedPhases = encounter.phases.filter((phase) => this.#phaseStartedAt.has(phase.order));
+    const phases: BossPhaseSummary[] = observedPhases.map((phase, index) => {
+      const startedAt = this.#phaseStartedAt.get(phase.order)!;
+      const nextPhase = observedPhases[index + 1];
+      const endedPhaseAt = nextPhase
+        ? this.#phaseStartedAt.get(nextPhase.order)!
+        : endedAt;
+      const enemies = [...timelines.bosses, ...timelines.mechanics, ...timelines.unknown].map((enemy) => ({
+        ...enemy,
+        phases: enemy.phases.length > 0 ? enemy.phases : [phase.order],
+      }));
+      const players = this.#phaseRates(phase.order, Math.max(endedPhaseAt - startedAt, 1));
+      return {
+        order: phase.order,
+        name: phase.name,
+        style: phase.style,
+        trigger: phase.trigger,
+        startedAt,
+        endedAt: endedPhaseAt,
+        triggerEvidence: this.#phaseEvidence.get(phase.order) ??
+          (index === observedPhases.length - 1 ? terminalEvidence : null),
+        enemies,
+        players,
+      };
+    });
+    return {
+      id: this.id,
+      index: this.index,
+      startedAt: this.startedAt,
+      endedAt,
+      durationMs,
+      zone: this.#context.zone,
+      difficulty: this.#context.difficulty,
+      groupSize: this.#context.groupSize,
+      encounter,
+      bossEntities: timelines.bosses,
+      mechanicEntities: timelines.mechanics,
+      unknownEntities: timelines.unknown,
+      phases,
+      players: this.#rates(durationMs),
+      deaths: [...this.#deaths],
+      outcome,
+      terminalEvidence,
+      buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
+    };
+  }
+
+  #terminalEvidence(encounter: EncounterRef, outcome: PullOutcome, timestamp: number, endReason: PullEndReason) {
+    if (outcome === "kill") {
+      if (this.#victoryEvidence !== null) return this.#victoryEvidence;
+      return {
+        kind: encounter.cleared ? "required-targets-dead" as const : "boss-death" as const,
+        timestamp,
+        detail: encounter.cleared ? "All required encounter targets were defeated." : "A boss entity was defeated.",
+        actorIds: [],
+        npcIds: [...this.#deadNpcIds],
+      };
+    }
+    if (outcome === "wipe") {
+      return {
+        kind: this.#deaths.length > 0 ? "raid-wipe" as const : "encounter-reset" as const,
+        timestamp,
+        detail: this.#deaths.length > 0 ? "Player deaths ended the boss attempt." : "The boss attempt ended without a victory.",
+        actorIds: this.#deaths.map((death) => death.playerId),
+        npcIds: [],
+      };
+    }
+    return {
+      kind: endReason,
+      timestamp,
+      detail: endReason === "sustained-silence"
+        ? "The boss attempt ended after sustained hostile silence without a victory event."
+        : "The combat stream ended before a terminal encounter result was observed.",
+      actorIds: [],
+      npcIds: [],
+    };
+  }
+
+  finish(endedAt: number, endReason: PullEndReason = "stream-ended"): PullSummary {
     const durationMs = Math.max(0, endedAt - this.startedAt);
     const encounter = this.#encounter();
     const boss = this.#boss(encounter);
+    const outcome = this.#outcome(boss, encounter, endReason);
     return {
       id: this.id,
       index: this.index,
@@ -381,17 +788,43 @@ export class PullAccumulator {
       groupSize: this.#context.groupSize,
       boss,
       encounter,
-      outcome: this.#outcome(boss, encounter),
+      outcome,
       roster: this.#roster(),
       actors: this.#rates(durationMs),
       deaths: [...this.#deaths],
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
+      bossFight: this.#bossFight(encounter, endedAt, outcome, endReason),
     };
   }
 
   live(now: number): LivePullState {
     const elapsedMs = Math.max(0, now - this.startedAt);
     const encounter = this.#encounter();
+    const liveBossFight: LiveBossFightSnapshot | null = encounter === null ? null : {
+      id: this.id,
+      index: this.index,
+      startedAt: this.startedAt,
+      elapsedMs,
+      zone: this.#context.zone,
+      difficulty: this.#context.difficulty,
+      groupSize: this.#context.groupSize,
+      encounter,
+      bossEntities: this.#enemyTimeline(encounter).bosses,
+      mechanicEntities: this.#enemyTimeline(encounter).mechanics,
+      unknownEntities: this.#enemyTimeline(encounter).unknown,
+      phases: encounter.phases.filter((phase) => this.#phaseStartedAt.has(phase.order)).map((phase, index, observed) => ({
+        order: phase.order,
+        name: phase.name,
+        style: phase.style,
+        trigger: phase.trigger,
+        startedAt: this.#phaseStartedAt.get(phase.order)!,
+        endedAt: observed[index + 1] ? this.#phaseStartedAt.get(observed[index + 1]!.order)! : null,
+        triggerEvidence: this.#phaseEvidence.get(phase.order) ?? null,
+        enemies: [...this.#enemyTimeline(encounter).bosses, ...this.#enemyTimeline(encounter).mechanics, ...this.#enemyTimeline(encounter).unknown],
+        players: this.#phaseRates(phase.order, Math.max(elapsedMs, 1)),
+      })),
+      players: this.#rates(elapsedMs),
+    };
     return {
       id: this.id,
       index: this.index,
@@ -404,6 +837,7 @@ export class PullAccumulator {
       encounter,
       actors: this.#rates(elapsedMs),
       deaths: [...this.#deaths],
+      bossFight: liveBossFight,
     };
   }
 }

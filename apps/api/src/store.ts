@@ -1,9 +1,9 @@
-import type { PullSummary } from "@swtor/analytics";
+import type { BossFightSummary } from "@swtor/analytics";
 import {
   SwtorDatabase,
   generateReportCode,
   summariseProgression,
-  toFightSummary,
+  toBossFightDocument,
   type ProgressionEntry,
   type ReportDocument,
 } from "@swtor/db";
@@ -27,7 +27,7 @@ export interface ReportStore {
   appendFight(
     code: string,
     guildId: string,
-    pull: PullSummary,
+    fight: BossFightSummary,
     events: readonly CombatEvent[],
   ): Promise<number>;
   getReport(guildId: string, code: string): Promise<ReportDocument | null>;
@@ -56,8 +56,8 @@ export class MongoReportStore implements ReportStore {
     return this.#db.createReport(input);
   }
 
-  appendFight(code: string, guildId: string, pull: PullSummary, events: readonly CombatEvent[]) {
-    return this.#db.appendFight(code, guildId, pull, events);
+  appendFight(code: string, guildId: string, fight: BossFightSummary, events: readonly CombatEvent[]) {
+    return this.#db.appendFight(code, guildId, fight, events);
   }
 
   getReport(guildId: string, code: string) {
@@ -112,7 +112,7 @@ export class MemoryReportStore implements ReportStore {
   async appendFight(
     code: string,
     guildId: string,
-    pull: PullSummary,
+    fight: BossFightSummary,
     events: readonly CombatEvent[],
   ): Promise<number> {
     const report = this.#reports.get(code);
@@ -121,12 +121,19 @@ export class MemoryReportStore implements ReportStore {
     }
 
     const fightId = report.fights.length + 1;
-    report.fights.push(toFightSummary(pull, fightId));
-    report.endedAt = new Date(pull.endedAt);
-    report.zone = pull.zone;
-    report.difficulty = pull.difficulty;
-    report.groupSize = pull.groupSize;
-    report.roster = pull.roster;
+    report.fights.push(toBossFightDocument(fight, fightId));
+    report.endedAt = new Date(fight.endedAt);
+    report.zone = fight.zone;
+    report.difficulty = fight.difficulty;
+    report.groupSize = fight.groupSize;
+    report.roster = fight.players.map((player) => ({
+      playerId: player.actorId,
+      serverId: null,
+      name: player.name,
+      advancedClass: player.combatStyle ?? null,
+      discipline: player.discipline,
+      role: player.role,
+    }));
     report.updatedAt = new Date();
 
     const fightEvents = this.#fightEvents.get(code);

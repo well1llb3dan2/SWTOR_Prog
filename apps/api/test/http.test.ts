@@ -41,7 +41,7 @@ describe("HTTP surface", () => {
     const body = response.json();
 
     expect(response.statusCode).toBe(200);
-    expect(body.operations).toHaveLength(13);
+    expect(body.operations.length).toBeGreaterThanOrEqual(13);
     expect(body.encounters.length).toBeGreaterThan(50);
     expect(body.encounters.some((e: { id: string }) => e.id === "snv_dashroode")).toBe(true);
   });

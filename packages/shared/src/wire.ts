@@ -191,47 +191,31 @@ export const meterSnapshotSchema = z.object({
   inCombat: z.boolean(),
   elapsedMs: z.number().int().nonnegative(),
   actors: z.array(actorMetricsSchema),
-});
-
-/** Uploaded once a pull closes; the durable record behind reports and feeds. */
-export const pullReportSchema = z.object({
-  sessionId: z.string().uuid(),
-  pullId: z.string().max(64),
-  index: z.number().int().positive(),
-  startedAt: z.number().int().nonnegative(),
-  endedAt: z.number().int().nonnegative(),
-  durationMs: z.number().int().nonnegative(),
-  zone: z.string().max(128).nullable(),
-  zoneId: z.string().max(32).nullable(),
-  difficulty: difficultySchema,
-  groupSize: groupSizeSchema,
-  boss: bossInfoSchema.nullable(),
-  encounter: encounterRefSchema.nullable(),
-  outcome: z.enum(["kill", "wipe", "incomplete"]),
-  roster: z
-    .array(
-      z.object({
-        playerId: z.string().max(32),
-        name: z.string().max(64),
-        advancedClass: z.string().max(64).nullable(),
-        discipline: z.string().max(64).nullable(),
-        role: z.enum(["tank", "healer", "dps"]).nullable(),
-      }),
-    )
-    .max(24),
-  actors: z.array(actorMetricsSchema).max(64),
-  deaths: z
-    .array(
-      z.object({
-        playerId: z.string().max(32),
-        name: z.string().max(64),
-        timestamp: z.number().int().nonnegative(),
-        offsetMs: z.number().int().nonnegative(),
-        killingBlowAbility: z.string().max(128).nullable(),
-        killingBlowSource: z.string().max(128).nullable(),
-      }),
-    )
-    .max(512),
+  bossFight: z.object({
+    id: z.string().max(128),
+    index: z.number().int().positive(),
+    startedAt: z.number().int().nonnegative(),
+    elapsedMs: z.number().int().nonnegative(),
+    zone: z.string().nullable(),
+    difficulty: difficultySchema,
+    groupSize: groupSizeSchema,
+    encounter: encounterRefSchema,
+    bossEntities: z.array(z.object({
+      instanceId: z.string(), npcId: z.string(), name: z.string(), role: z.enum(["boss", "mechanic", "unknown"]),
+      firstSeenAt: z.number(), engagedAt: z.number().nullable(), lastSeenAt: z.number(), diedAt: z.number().nullable(),
+      maxHp: z.number().nullable(), finalHp: z.number().nullable(), damageTaken: z.number(), damageDealt: z.number(),
+      absorbed: z.number().optional(), criticalHits: z.number().optional(), criticalDamage: z.number().optional(),
+      mitigatedDamage: z.number().optional(), overkill: z.number().optional(), threat: z.number().optional(),
+      damageByType: z.record(z.number()).optional(), mitigationByType: z.record(z.number()).optional(), deaths: z.number(), phases: z.array(z.number()),
+    }).passthrough()).max(512),
+    mechanicEntities: z.array(z.any()).max(512),
+    unknownEntities: z.array(z.any()).max(512),
+    phases: z.array(z.object({
+      order: z.number(), name: z.string(), style: z.string(), trigger: z.string(), startedAt: z.number(), endedAt: z.number().nullable(),
+      triggerEvidence: z.any().nullable(), enemies: z.array(z.any()), players: z.array(z.any()),
+    }).passthrough()).max(32),
+    players: z.array(z.any()).max(64),
+  }).strict().nullable(),
 });
 
 export type IngestHello = z.infer<typeof ingestHelloSchema>;
@@ -239,4 +223,3 @@ export type IngestBatch = z.infer<typeof ingestBatchSchema>;
 export type ActorMetrics = z.infer<typeof actorMetricsSchema>;
 export type EncounterRefPayload = z.infer<typeof encounterRefSchema>;
 export type MeterSnapshot = z.infer<typeof meterSnapshotSchema>;
-export type PullReport = z.infer<typeof pullReportSchema>;

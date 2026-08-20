@@ -1,4 +1,4 @@
-import type { LivePullState, PullSummary } from "@swtor/analytics";
+import type { LivePullState, BossFightSummary } from "@swtor/analytics";
 
 export interface ApiHealth {
   status: string;
@@ -93,6 +93,7 @@ export async function reportLiveSnapshot(
             overhealPercent: Math.round(a.overhealPercent),
             deaths: a.deaths,
           })),
+          bossFight: snapshot.bossFight,
         }
       : null;
 
@@ -129,7 +130,7 @@ export async function reportDetectedCharacter(
     },
     body: JSON.stringify({
       schema: "progression-event",
-      version: "1.0",
+      version: "2.0",
       guildId: "default",
       generatedAt: new Date().toISOString(),
       source: "SWTOR_Prog",
@@ -157,17 +158,18 @@ export async function reportDetectedCharacter(
 export async function reportProgressionPull(
   serverUrl: string,
   token: string,
-  pull: PullSummary,
+  fight: BossFightSummary,
   localCharacterName: string,
   serverId?: string | null,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ accepted: boolean; encounterName: string; outcome: string }> {
   const baseUrl = normalizeBaseUrl(serverUrl);
   const url = `${baseUrl}/api/progression/ingest`;
-  const encounterId = pull.encounter?.encounterId ?? pull.boss?.npcId ?? "boss-fight";
-  const encounterName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
-  const outcome = pull.outcome === "kill" ? "kill" : "wipe";
-  const occurredAt = new Date(pull.endedAt || Date.now()).toISOString();
+  const bossFight = fight;
+  const encounterId = bossFight.encounter.encounterId;
+  const encounterName = bossFight.encounter.encounterName;
+  const outcome = bossFight.outcome;
+  const occurredAt = new Date(fight.endedAt || Date.now()).toISOString();
 
   const response = await fetchImpl(url, {
     method: "POST",
@@ -177,7 +179,7 @@ export async function reportProgressionPull(
     },
     body: JSON.stringify({
       schema: "progression-event",
-      version: "1.0",
+      version: "2.0",
       guildId: "default",
       generatedAt: new Date().toISOString(),
       source: "SWTOR_Prog",
@@ -188,47 +190,10 @@ export async function reportProgressionPull(
         outcome,
         characterName: localCharacterName,
         serverId: serverId ?? undefined,
-        difficulty: pull.difficulty ?? "Veteran",
+        difficulty: fight.difficulty ?? undefined,
         occurredAt,
         details: {
-          operationId: pull.encounter?.operationId,
-          operationName: pull.encounter?.operationName,
-          durationMs: pull.durationMs,
-          boss: pull.boss ?? undefined,
-          actors: pull.actors.map((a) => ({
-            actorId: a.actorId,
-            name: a.name,
-            role: a.role,
-            discipline: a.discipline,
-            dps: a.dps,
-            hps: a.hps,
-            dtps: a.dtps,
-            damage: a.damage,
-            healing: a.healing,
-            damageTaken: a.damageTaken,
-            overhealPercent: a.overhealPercent,
-            deaths: a.deaths,
-          })),
-          deaths: pull.deaths.map((d) => ({
-            playerId: d.playerId,
-            name: d.name,
-            timestamp: d.timestamp,
-            offsetMs: d.offsetMs,
-            killingBlowAbility: d.killingBlowAbility,
-            killingBlowSource: d.killingBlowSource,
-          })),
-          bossPhases: (pull.encounter?.phases ?? []).map((phase) => ({
-            order: phase.order,
-            name: phase.name,
-            style: phase.style,
-            trigger: phase.trigger,
-            outcome,
-          })),
-          enemyFights: (pull.encounter?.matchedBosses ?? []).map((enemyName, index) => ({
-            enemyName,
-            outcome,
-            phaseName: (pull.encounter?.phases ?? [])[index]?.name,
-          })),
+          bossFight,
         },
       },
     }),

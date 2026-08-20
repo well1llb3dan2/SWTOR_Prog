@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventBatcher } from "../src/core/batcher.js";
 import { OfflineQueue } from "../src/core/offlineQueue.js";
 import { ReplaySource } from "../src/core/replay.js";
-import { LogStreamer } from "../src/core/streamer.js";
+import { LogStreamer, readInitialLogIdentity } from "../src/core/streamer.js";
 import { defaultSettings, redactSettings } from "../src/core/settings.js";
 
 const temporaryDirs: string[] = [];
@@ -133,6 +133,64 @@ describe("settings", () => {
 
   it("reports when no token has been configured", () => {
     expect(redactSettings(defaultSettings()).hasToken).toBe(false);
+  });
+});
+
+describe("local character attribution", () => {
+  const identities = [
+    {
+      file: "combat_2026-08-13_00_27_55_882410.txt",
+      characterName: "Mérlín",
+      playerId: "688098112822271",
+      discipline: "Telekinetics",
+      zone: "Republic Fleet",
+    },
+    {
+      file: "combat_2026-08-15_20_21_10_493955.txt",
+      characterName: "Twistle",
+      playerId: "688363584125440",
+      discipline: "Watchman",
+      zone: "Defender",
+    },
+    {
+      file: "combat_2026-08-15_22_48_11_971003.txt",
+      characterName: "Mérlín",
+      playerId: "688098112822271",
+      discipline: "Rage",
+      zone: "Republic Fleet",
+    },
+  ] as const;
+
+  for (const expected of identities) {
+    it(`detects ${expected.characterName} from ${expected.file}`, async () => {
+      const identity = await readInitialLogIdentity(
+        fileURLToPath(new URL(`../../../samples/combat-logs/${expected.file}`, import.meta.url)),
+      );
+      expect(identity).toMatchObject({
+        characterName: expected.characterName,
+        playerId: expected.playerId,
+        discipline: expected.discipline,
+        zone: expected.zone,
+      });
+    });
+  }
+
+  it("does not infer the logger from an unrelated player's activity", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "swtor-identity-"));
+    const filePath = join(dir, "identity-order.txt");
+    temporaryDirs.push(dir);
+    await writeFile(filePath, [
+      "[21:12:57.087] [@PartyMember#222|(-1.45,11.15,16.77,148.81)|(432142/432142)] [=] [Force Leap {812105301229568}] [Event {836045448945472}: AbilityActivate {836045448945479}]",
+      "[21:12:58.000] [@Logger#111|(-9.86,26.23,16.52,135.16)|(1/416618)] [] [] [AreaEntered {836045448953664}: Defender {137438988838}] (he3000) <v7.0.0b>",
+      "[21:12:58.000] [@Logger#111|(-9.86,26.23,16.52,135.16)|(1/416618)] [] [] [DisciplineChanged {836045448953665}: Sentinel {16141154905109553504}/Watchman {2031339142381614}]",
+    ].join("\n"), "utf8");
+
+    await expect(readInitialLogIdentity(filePath)).resolves.toMatchObject({
+      characterName: "Logger",
+      playerId: "111",
+      discipline: "Watchman",
+      zone: "Defender",
+    });
   });
 });
 

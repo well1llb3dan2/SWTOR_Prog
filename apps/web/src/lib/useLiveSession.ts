@@ -1,6 +1,7 @@
 "use client";
 
 import type { MeterSnapshot } from "@swtor/shared";
+import type { BossFightSummary } from "@swtor/analytics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { API_BASE_URL } from "./apiBase";
@@ -10,9 +11,7 @@ export type LiveStatus = "connecting" | "live" | "waiting" | "disconnected" | "e
 export interface CompletedPull {
   reportCode: string;
   fightId: number;
-  outcome: "kill" | "wipe" | "incomplete";
-  durationMs: number;
-  encounter: { encounterId: string; encounterName: string } | null;
+  bossFight: BossFightSummary;
 }
 
 export interface LiveSession {

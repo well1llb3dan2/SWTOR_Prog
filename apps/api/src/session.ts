@@ -1,4 +1,4 @@
-import { CombatSession, type LivePullState, type PullSummary } from "@swtor/analytics";
+import { CombatSession, type LivePullState, type BossFightSummary } from "@swtor/analytics";
 import type { ActorMetrics, CombatEvent, MeterSnapshot } from "@swtor/shared";
 import type { SeenCharacter } from "./accountStore.js";
 
@@ -10,7 +10,7 @@ export interface IngestSessionInit {
   ownerUserId?: string | null;
   idleTimeoutMs?: number;
   exitGraceMs?: number;
-  onPullEnd: (pull: PullSummary, events: CombatEvent[]) => void;
+  onPullEnd: (fight: BossFightSummary, events: CombatEvent[]) => void;
 }
 
 /**
@@ -87,8 +87,8 @@ export class IngestSession {
         this.#pullOpen = false;
         const events = this.#buffer;
         this.#buffer = [];
-        if (pull.boss?.isLikelyBoss !== true) return;
-        init.onPullEnd(pull, events);
+        if (pull.bossFight === null) return;
+        init.onPullEnd(pull.bossFight, events);
       },
     });
   }
@@ -132,7 +132,7 @@ export class IngestSession {
 
   snapshot(wallNow: number): MeterSnapshot | null {
     const pull = this.#combat.current(this.#eventTime(wallNow));
-    if (pull === null || pull.boss?.isLikelyBoss !== true) return null;
+    if (pull === null || pull.encounter === null || pull.boss?.isLikelyBoss !== true) return null;
 
     return {
       sessionId: this.sessionId,
@@ -145,6 +145,7 @@ export class IngestSession {
       inCombat: true,
       elapsedMs: pull.elapsedMs,
       actors: pull.actors.map(toActorMetrics),
+      bossFight: pull.bossFight,
     };
   }
 

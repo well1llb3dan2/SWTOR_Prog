@@ -33,16 +33,17 @@ function compact(value: number): string {
   return Math.round(value).toString();
 }
 
-function composition(pull: Announcement["pull"]): string {
+function composition(announcement: Announcement): string {
   const counts = { tank: 0, healer: 0, dps: 0 };
-  for (const member of pull.roster) {
+  const members = announcement.sourcePull?.roster ?? announcement.fight.players;
+  for (const member of members) {
     if (member.role !== null) counts[member.role] += 1;
   }
   return `${counts.tank} tank · ${counts.healer} heal · ${counts.dps} dps`;
 }
 
-function topDamage(pull: Announcement["pull"], limit = 3): string {
-  const rows = pull.actors
+function topDamage(announcement: Announcement, limit = 3): string {
+  const rows = (announcement.sourcePull?.actors ?? announcement.fight.players)
     .filter((actor) => actor.damage > 0)
     .sort((a, b) => b.dps - a.dps)
     .slice(0, limit);
@@ -57,11 +58,11 @@ export interface EmbedContext {
 
 /** Builds the Discord payload. Pure, so the wording is unit tested. */
 export function buildAnnouncementEmbed(announcement: Announcement, context: EmbedContext): Embed {
-  const { pull, kind } = announcement;
-  const encounter = pull.encounter!;
+  const { fight, kind } = announcement;
+  const encounter = fight.encounter;
   const reportUrl = `${context.webUrl}/reports/${announcement.reportCode}/fights/${announcement.fightId}`;
 
-  const descriptor = [pull.difficulty, pull.groupSize === null ? null : `${pull.groupSize}-player`]
+  const descriptor = [fight.difficulty, fight.groupSize === null ? null : `${fight.groupSize}-player`]
     .filter((part) => part !== null)
     .join(" · ");
 
@@ -75,11 +76,12 @@ export function buildAnnouncementEmbed(announcement: Announcement, context: Embe
   const fields: EmbedField[] = [
     { name: "Operation", value: encounter.operationName, inline: true },
     { name: "Mode", value: descriptor.length > 0 ? descriptor : "Unknown", inline: true },
-    { name: "Duration", value: duration(pull.durationMs), inline: true },
+    { name: "Duration", value: duration(fight.durationMs), inline: true },
   ];
 
   if (kind === "closeWipe") {
-    const remaining = pull.boss?.hpPercent ?? null;
+    const boss = fight.bossEntities[0];
+    const remaining = boss?.maxHp && boss.finalHp !== null ? (boss.finalHp / boss.maxHp) * 100 : null;
     fields.push({
       name: "Boss remaining",
       value: remaining === null ? "—" : `${remaining.toFixed(1)}%`,
@@ -96,9 +98,9 @@ export function buildAnnouncementEmbed(announcement: Announcement, context: Embe
 
   fields.push(
     { name: "Attempt", value: announcement.attempts.toString(), inline: true },
-    { name: "Deaths", value: pull.deaths.length.toString(), inline: true },
-    { name: "Composition", value: composition(pull), inline: true },
-    { name: "Top damage", value: topDamage(pull), inline: false },
+    { name: "Deaths", value: fight.deaths.length.toString(), inline: true },
+    { name: "Composition", value: composition(announcement), inline: true },
+    { name: "Top damage", value: topDamage(announcement), inline: false },
   );
 
   const description =
@@ -116,7 +118,7 @@ export function buildAnnouncementEmbed(announcement: Announcement, context: Embe
     ...(description === undefined ? {} : { description }),
     color: COLOURS[kind],
     fields,
-    footer: { text: `Infamous · pull ${pull.index}` },
-    timestamp: new Date(pull.endedAt).toISOString(),
+    footer: { text: `Infamous · fight ${fight.index}` },
+    timestamp: new Date(fight.endedAt).toISOString(),
   };
 }

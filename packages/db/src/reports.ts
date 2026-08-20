@@ -1,21 +1,13 @@
-import type { PullSummary } from "@swtor/analytics";
-import type { FightSummaryDocument } from "./schema.js";
+import type { BossFightSummary } from "@swtor/analytics";
+import type { BossFightDocument } from "./schema.js";
 
 /** Strips the time series; buckets hold the raw events instead. */
-export function toFightSummary(pull: PullSummary, fightId: number): FightSummaryDocument {
+export function toBossFightDocument(fight: BossFightSummary, fightId: number): BossFightDocument {
   return {
     fightId,
-    startedAt: new Date(pull.startedAt),
-    endedAt: new Date(pull.endedAt),
-    durationMs: pull.durationMs,
-    zone: pull.zone,
-    difficulty: pull.difficulty,
-    groupSize: pull.groupSize,
-    boss: pull.boss,
-    encounter: pull.encounter,
-    outcome: pull.outcome,
-    actors: pull.actors,
-    deaths: pull.deaths,
+    ...fight,
+    startedAt: new Date(fight.startedAt),
+    endedAt: new Date(fight.endedAt),
   };
 }
 
@@ -36,7 +28,7 @@ export interface ProgressionEntry {
  * which is the number a guild actually cares about while progressing. It comes
  * straight from the logged health values rather than any external table.
  */
-export function summariseProgression(fights: readonly FightSummaryDocument[]): ProgressionEntry[] {
+export function summariseProgression(fights: readonly BossFightDocument[]): ProgressionEntry[] {
   const byEncounter = new Map<string, ProgressionEntry>();
 
   for (const fight of fights) {
@@ -67,7 +59,10 @@ export function summariseProgression(fights: readonly FightSummaryDocument[]): P
       continue;
     }
 
-    const remaining = fight.boss?.hpPercent ?? null;
+    const boss = fight.bossEntities[0];
+    const remaining = boss?.maxHp && boss.finalHp !== null
+      ? (boss.finalHp / boss.maxHp) * 100
+      : null;
     if (
       remaining !== null &&
       (entry.bestWipeHpPercent === null || remaining < entry.bestWipeHpPercent)

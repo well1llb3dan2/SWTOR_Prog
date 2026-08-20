@@ -1,4 +1,4 @@
-import type { PullSummary } from "@swtor/analytics";
+import type { BossFightSummary, PullSummary } from "@swtor/analytics";
 
 export type AnnouncementKind = "firstKill" | "kill" | "closeWipe";
 
@@ -9,7 +9,8 @@ export interface PullRef {
 
 export interface Announcement extends PullRef {
   kind: AnnouncementKind;
-  pull: PullSummary;
+  fight: BossFightSummary;
+  sourcePull?: PullSummary;
   encounterId: string;
   /** Attempts on this encounter including the one being announced. */
   attempts: number;
@@ -54,11 +55,13 @@ export class AnnouncementPolicy {
     this.#progress.set(encounterId, progress);
   }
 
-  evaluate(pull: PullSummary, ref: PullRef): Announcement | null {
-    const encounter = pull.encounter;
-    if (encounter === null) return null;
-    if (this.#policy.bossesOnly && pull.boss?.isLikelyBoss !== true) return null;
-    if (pull.outcome === "incomplete") return null;
+  evaluate(input: PullSummary | BossFightSummary, ref: PullRef): Announcement | null {
+    const fight = "bossFight" in input ? input.bossFight : input;
+    if (fight === null) return null;
+    if ("bossFight" in input && (input.encounter === null || input.outcome === "incomplete")) return null;
+    const encounter = fight.encounter;
+    if (this.#policy.bossesOnly && fight.bossEntities.length === 0) return null;
+    if (fight.outcome === "incomplete") return null;
 
     const current = this.#progress.get(encounter.encounterId) ?? {
       attempts: 0,
@@ -68,12 +71,13 @@ export class AnnouncementPolicy {
     const previousBestHpPercent = current.bestWipeHpPercent;
     const attempts = current.attempts + 1;
 
-    if (pull.outcome === "kill") {
+    if (fight.outcome === "kill") {
       const kills = current.kills + 1;
       this.#progress.set(encounter.encounterId, { ...current, attempts, kills });
       return {
         kind: current.kills === 0 ? "firstKill" : "kill",
-        pull,
+        fight,
+        ...( "bossFight" in input ? { sourcePull: input } : {}),
         encounterId: encounter.encounterId,
         attempts,
         kills,
@@ -82,7 +86,8 @@ export class AnnouncementPolicy {
       };
     }
 
-    const remaining = pull.boss?.hpPercent ?? null;
+    const boss = fight.bossEntities[0];
+    const remaining = boss?.maxHp && boss.finalHp !== null ? (boss.finalHp / boss.maxHp) * 100 : null;
     const improved =
       remaining !== null && (previousBestHpPercent === null || remaining < previousBestHpPercent);
 
@@ -96,7 +101,8 @@ export class AnnouncementPolicy {
 
     return {
       kind: "closeWipe",
-      pull,
+      fight,
+      ...( "bossFight" in input ? { sourcePull: input } : {}),
       encounterId: encounter.encounterId,
       attempts,
       kills: current.kills,

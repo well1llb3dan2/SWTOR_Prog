@@ -187,7 +187,7 @@ describe("end-to-end pipeline", () => {
     const completed = waitFor<{
       fightId: number;
       outcome: string;
-      encounter: { encounterId: string };
+      bossFight: { encounter: { encounterId: string }; outcome: string };
     }>(viewer, "pull:complete");
 
     let sequence = 0;
@@ -202,14 +202,18 @@ describe("end-to-end pipeline", () => {
 
     const result = await completed;
 
-    expect(result.outcome).toBe("kill");
-    expect(result.encounter.encounterId).toBe("snv_dashroode");
+    expect(result.bossFight.outcome).toBe("kill");
+    expect(result.bossFight.encounter.encounterId).toBe("snv_dashroode");
 
     const live = snapshots.at(-1);
     expect(live, "expected at least one live snapshot").toBeDefined();
     expect(live!.zone).toBe("Darvannis");
     expect(live!.difficulty).toBe("Veteran");
     expect(live!.encounter?.encounterName).toBe("Dash'Roode");
+    expect(live!.bossFight?.encounter.encounterId).toBe("snv_dashroode");
+    expect(live!.bossFight?.bossEntities.length).toBeGreaterThan(0);
+    expect(live!.bossFight?.phases.length).toBeGreaterThan(0);
+    expect(live!.bossFight?.players.length).toBeGreaterThan(0);
     expect(live!.boss?.hpPercent).not.toBeNull();
     expect(live!.actors.filter((a) => a.totalDamage > 0).length).toBeGreaterThanOrEqual(5);
     expect(live!.actors[0]!.dps).toBeGreaterThan(1_000);
@@ -238,7 +242,7 @@ describe("end-to-end pipeline", () => {
     const broadcast = await feedPull;
     expect(broadcast.reportCode).toBe(hello.reportCode);
     expect(broadcast.fightId).toBe(1);
-    expect(broadcast.pull.outcome).toBe("kill");
+    expect(broadcast.bossFight.outcome).toBe("kill");
 
     feed.close();
     ingest.close();

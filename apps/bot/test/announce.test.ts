@@ -72,6 +72,51 @@ function pull(over: Partial<PullSummary> = {}): PullSummary {
     ],
     deaths: [],
     buckets: [],
+    bossFight: {
+      id: "p1",
+      index: 1,
+      startedAt: 1_000,
+      endedAt: 241_000,
+      durationMs: 240_000,
+      zone: "Darvannis",
+      difficulty: "Veteran",
+      groupSize: 8,
+      encounter: {
+        encounterId: "snv_dashroode",
+        encounterName: "Dash'Roode",
+        operationId: "snv",
+        operationName: "Scum and Villainy",
+        isLair: false,
+        matchedBosses: ["dash'roode"],
+        phases: [],
+        victoryEvent: "Boss defeated",
+        cleared: true,
+      },
+      bossEntities: [{
+        instanceId: "1",
+        npcId: "1",
+        name: "Dash'Roode",
+        role: "boss",
+        firstSeenAt: 1_000,
+        engagedAt: 1_000,
+        lastSeenAt: 241_000,
+        diedAt: 241_000,
+        maxHp: 21_829_804,
+        finalHp: 0,
+        damageTaken: 21_829_804,
+        damageDealt: 0,
+        deaths: 1,
+        phases: [],
+      }],
+      mechanicEntities: [],
+      unknownEntities: [],
+      phases: [],
+      players: [],
+      deaths: [],
+      outcome: "kill",
+      terminalEvidence: null,
+      buckets: [],
+    },
     ...over,
   };
 }
@@ -88,6 +133,17 @@ const wipe = (hpPercent: number | null): PullSummary =>
       isLikelyBoss: true,
     },
     encounter: { ...pull().encounter!, cleared: false },
+    bossFight: {
+      ...pull().bossFight!,
+      outcome: "wipe",
+      encounter: { ...pull().bossFight!.encounter, cleared: false },
+      bossEntities: [{
+        ...pull().bossFight!.bossEntities[0]!,
+        diedAt: null,
+        finalHp: hpPercent === null ? null : (21_829_804 * hpPercent) / 100,
+        deaths: 0,
+      }],
+    },
   });
 
 const policy = () => new AnnouncementPolicy({ closeWipePercent: 15, bossesOnly: true });
@@ -141,11 +197,12 @@ describe("AnnouncementPolicy", () => {
         hpPercent: 0,
         isLikelyBoss: false,
       },
+      bossFight: null,
     });
     expect(policy().evaluate(trash, REF)).toBeNull();
   });
 
-  it("announces trash kills when the boss filter is off", () => {
+  it("does not announce trash without a boss fight record", () => {
     const relaxed = new AnnouncementPolicy({ closeWipePercent: 15, bossesOnly: false });
     const trash = pull({
       boss: {
@@ -156,8 +213,9 @@ describe("AnnouncementPolicy", () => {
         hpPercent: 0,
         isLikelyBoss: false,
       },
+      bossFight: null,
     });
-    expect(relaxed.evaluate(trash, REF)?.kind).toBe("firstKill");
+    expect(relaxed.evaluate(trash, REF)).toBeNull();
   });
 
   it("never announces an abandoned pull", () => {

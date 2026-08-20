@@ -4,6 +4,8 @@ import {
   ENCOUNTERS_BY_ID,
   OPERATIONS,
   isEncounterCleared,
+  classifyEncounterEntity,
+  resolveEncounterPhase,
   resolveEncounter,
   supportsDifficulty,
 } from "@swtor/game-data";
@@ -170,5 +172,21 @@ describe("isEncounterCleared", () => {
   it("does not treat a phase-one target as a clear", () => {
     expect(isEncounterCleared(styrak, ["Kell Dragon"])).toBe(false);
     expect(isEncounterCleared(styrak, ["Kell Dragon", "Dread Master Styrak"])).toBe(true);
+  });
+});
+
+describe("phase and entity resolution", () => {
+  it("keeps catalogued mechanics inside the matched boss encounter", () => {
+    const encounter = ENCOUNTERS_BY_ID.get("snv_dashroode")!;
+    expect(classifyEncounterEntity(encounter, "Dash'Roode")).toBe("boss");
+    expect(classifyEncounterEntity(encounter, "Voracious Xuvva")).toBe("mechanic");
+    expect(classifyEncounterEntity(encounter, "Unrelated Trash")).toBe("unknown");
+  });
+
+  it("advances phases when a catalogued HP threshold is crossed", () => {
+    const encounter = ENCOUNTERS_BY_ID.get("ev_soa")!;
+    expect(resolveEncounterPhase(encounter, { bossHpPercent: 80 })).toBe(1);
+    expect(resolveEncounterPhase(encounter, { bossHpPercent: 74 })).toBe(2);
+    expect(resolveEncounterPhase(encounter, { bossHpPercent: 29 })).toBe(3);
   });
 });

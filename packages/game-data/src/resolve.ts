@@ -21,7 +21,46 @@ export interface EncounterMatch {
   score: number;
 }
 
+export type EncounterEntityRole = "boss" | "mechanic" | "unknown";
+
+export interface PhaseEvidenceQuery {
+  bossHpPercent?: number | null;
+  abilityName?: string | null;
+  effectName?: string | null;
+}
+
 const normalise = (value: string): string => value.trim().toLowerCase();
+
+function phaseThreshold(trigger: string): number | null {
+  const values = [...trigger.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((match) => Number(match[1]));
+  return values.length > 0 ? Math.max(...values) : null;
+}
+
+/** Classifies only entities explicitly known by the matched encounter. */
+export function classifyEncounterEntity(encounter: Encounter, name: string): EncounterEntityRole {
+  const value = normalise(name);
+  if (encounter.bossNames.some((candidate) => normalise(candidate) === value)) return "boss";
+  if (encounter.adds.some((candidate) => normalise(candidate) === value || value.includes(normalise(candidate)))) return "mechanic";
+  return "unknown";
+}
+
+/** Resolves the highest phase supported by observed HP or named combat evidence. */
+export function resolveEncounterPhase(encounter: Encounter, query: PhaseEvidenceQuery): number {
+  if (encounter.phases.length === 0) return 1;
+  const evidenceText = normalise(`${query.abilityName ?? ""} ${query.effectName ?? ""}`);
+  let resolved = encounter.phases[0]!.order;
+  for (const phase of encounter.phases) {
+    const threshold = phaseThreshold(phase.trigger);
+    if (query.bossHpPercent !== null && query.bossHpPercent !== undefined && threshold !== null && query.bossHpPercent <= threshold) {
+      resolved = Math.max(resolved, phase.order);
+    }
+    const phaseName = normalise(phase.name);
+    if (evidenceText.length > 0 && (evidenceText.includes(phaseName) || evidenceText.includes(`phase ${phase.order}`))) {
+      resolved = Math.max(resolved, phase.order);
+    }
+  }
+  return resolved;
+}
 
 function operationMatchesZone(
   operation: Operation,
@@ -75,7 +114,12 @@ export function resolveEncounter(query: EncounterQuery): EncounterMatch | null {
 }
 
 /** True once every target the encounter requires has died. */
-export function isEncounterCleared(encounter: Encounter, deadNpcNames: Iterable<string>): boolean {
+export function isEncounterCleared(
+  encounter: Encounter,
+  deadNpcNames: Iterable<string>,
+  victoryEvidenceObserved = false,
+): boolean {
+  if (victoryEvidenceObserved) return true;
   const dead = new Set([...deadNpcNames].map(normalise));
   const required =
     encounter.victoryRequires.length > 0 ? encounter.victoryRequires : encounter.bossNames;

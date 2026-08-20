@@ -44,10 +44,11 @@ interface AppStatus {
   totalDamage: number;
   totalHealing: number;
   totalDamageTaken: number;
-  deaths: number;
+  personalDeaths: number;
+  raidDeaths: number;
   pullsCount: number;
   bossKills: number;
-  wipes: number;
+  bossWipes: number;
   logs: string[];
 }
 
@@ -81,10 +82,11 @@ const status: AppStatus = {
   totalDamage: 0,
   totalHealing: 0,
   totalDamageTaken: 0,
-  deaths: 0,
+  personalDeaths: 0,
+  raidDeaths: 0,
   pullsCount: 0,
   bossKills: 0,
-  wipes: 0,
+  bossWipes: 0,
   logs: [`[${new Date().toLocaleTimeString()}] SWTOR Combat Streamer initialized.`],
 };
 
@@ -123,10 +125,11 @@ function getStreamer(): LogStreamer {
         totalDamage: s.totalDamage,
         totalHealing: s.totalHealing,
         totalDamageTaken: s.totalDamageTaken,
-        deaths: s.deaths,
+        personalDeaths: s.personalDeaths,
+        raidDeaths: s.raidDeaths,
         pullsCount: s.pullsCount,
         bossKills: s.bossKills,
-        wipes: s.wipes,
+        bossWipes: s.bossWipes,
       }),
     onLog: (msg) => appendLog(msg),
     onSnapshot: (snapshot, inCombat) => {
@@ -145,13 +148,13 @@ function getStreamer(): LogStreamer {
         console.warn("Character reporting to Merlin API encountered:", err);
       }
     },
-    onPullCompleted: async (pull, characterName, serverId) => {
+    onPullCompleted: async (fight, characterName, serverId) => {
       try {
-        const bossName = pull.encounter?.encounterName ?? pull.boss?.name ?? "Boss Encounter";
-        publish({ detail: `Syncing ${bossName} (${pull.outcome}) to Merlin...` });
-        await reportProgressionPull(settings.serverUrl, settings.token, pull, characterName, serverId);
-        publish({ detail: `Synced ${bossName} (${pull.outcome}) to Merlin.` });
-        appendLog(`Synced ${bossName} (${pull.outcome}) with ${pull.actors.length} actors to Merlin.`);
+        const bossName = fight.encounter.encounterName;
+        publish({ detail: `Syncing ${bossName} (${fight.outcome}) to Merlin...` });
+        await reportProgressionPull(settings.serverUrl, settings.token, fight, characterName, serverId);
+        publish({ detail: `Synced ${bossName} (${fight.outcome}) to Merlin.` });
+        appendLog(`Synced ${bossName} (${fight.outcome}) with ${fight.players.length} players to Merlin.`);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         publish({ detail: `Pull sync to Merlin failed: ${message}` });

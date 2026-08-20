@@ -193,8 +193,8 @@ export async function startBot(config: BotConfig): Promise<() => Promise<void>> 
     apiUrl: config.apiUrl,
     token: config.feedToken,
     onState: (state, detail) => console.info(`feed ${state}${detail ? `: ${detail}` : ""}`),
-    onPull: ({ pull, reportCode, fightId }) => {
-      const announcement = policy.evaluate(pull, { reportCode, fightId });
+    onPull: ({ bossFight, reportCode, fightId }) => {
+      const announcement = policy.evaluate(bossFight, { reportCode, fightId });
       if (announcement === null) return;
 
       const embed = buildAnnouncementEmbed(announcement, { webUrl: config.webUrl });

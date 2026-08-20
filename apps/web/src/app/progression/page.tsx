@@ -14,13 +14,13 @@ export default async function ProgressionPage() {
   const safeReports = Array.isArray(reports) ? reports : [];
   const bossFights = safeReports.flatMap((report) => {
     const fights = Array.isArray(report.fights) ? report.fights : [];
-    return fights.filter((fight) => fight.boss?.isLikelyBoss === true);
+    return fights.filter((fight) => fight.bossEntities.length > 0);
   });
 
   const encounterSummary = new Map<string, { name: string; kills: number; wipes: number }>();
   for (const fight of bossFights) {
-    const key = fight.encounter?.encounterId ?? fight.boss?.name ?? "unknown";
-    const label = fight.encounter?.encounterName ?? fight.boss?.name ?? "Unknown boss";
+    const key = fight.encounter.encounterId;
+    const label = fight.encounter.encounterName;
     const current = encounterSummary.get(key) ?? { name: label, kills: 0, wipes: 0 };
     if (fight.outcome === "kill") current.kills += 1;
     if (fight.outcome === "wipe") current.wipes += 1;

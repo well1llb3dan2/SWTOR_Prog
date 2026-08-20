@@ -147,22 +147,20 @@ export function registerRealtime(deps: RealtimeDeps): RealtimeHandle {
           ownerUserId: (socket.data.ownerUserId as string | null) ?? null,
           idleTimeoutMs: config.pullIdleTimeoutMs,
           exitGraceMs: config.pullExitGraceMs,
-          onPullEnd: (pull, events) => {
+          onPullEnd: (fight, events) => {
             void store
-              .appendFight(report.code, config.defaultGuildId, pull, events)
+              .appendFight(report.code, config.defaultGuildId, fight, events)
               .then((fightId) => {
                 live.to(parsed.data.sessionId).emit("pull:complete", {
                   reportCode: report.code,
                   fightId,
-                  encounter: pull.encounter,
-                  outcome: pull.outcome,
-                  durationMs: pull.durationMs,
+                  bossFight: fight,
                 });
                 feed.emit("pull:complete", {
                   guildId: config.defaultGuildId,
                   reportCode: report.code,
                   fightId,
-                  pull,
+                  bossFight: fight,
                 });
               })
               .catch((error: unknown) => log.warn({ error }, "failed to persist fight"));

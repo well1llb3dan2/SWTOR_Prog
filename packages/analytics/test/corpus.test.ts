@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { analyzeEvents } from "@swtor/analytics";
+import { analyzeEvents, groupBossFightsByOperation } from "@swtor/analytics";
 import { LogParser } from "@swtor/parser";
 
 const FILE = "combat_2026-08-15_22_48_11_971003.txt";
@@ -57,6 +57,23 @@ describe("Scum and Villainy sample", () => {
     expect(new Set(bossPulls.map((p) => p.encounter!.operationName))).toEqual(
       new Set(["Scum and Villainy"]),
     );
+  });
+
+  it("groups boss fights in canonical operation order and excludes trash", () => {
+    const operations = groupBossFightsByOperation(pulls);
+    expect(operations).toHaveLength(1);
+    expect(operations[0]!.operationName).toBe("Scum and Villainy");
+    expect(operations[0]!.fights.map((fight) => fight.encounter.encounterId)).toEqual([
+      "snv_dashroode",
+      "snv_titan_6",
+      "snv_thrasher",
+      "snv_operations_chief",
+      "snv_olok_the_shadow",
+      "snv_cartel_warlords",
+      "snv_cartel_warlords",
+      "snv_dread_master_styrak",
+    ]);
+    expect(operations[0]!.fights.every((fight) => fight.bossEntities.length > 0)).toBe(true);
   });
 
   it("leaves trash pulls unmatched", () => {

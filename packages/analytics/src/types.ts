@@ -8,8 +8,12 @@ export interface EncounterRef {
   operationId: string;
   operationName: string;
   isLair: boolean;
+  /** Canonical encounter order within the operation. */
+  order?: number;
   /** Encounter bosses actually engaged during this pull. */
   matchedBosses: string[];
+  /** Catalogued mechanic/add names belonging to the encounter. */
+  adds?: string[];
   phases: EncounterPhase[];
   victoryEvent: string;
   /** Every required target died. */
@@ -58,6 +62,13 @@ export interface ActorTotals {
   overhealing: number;
   damageTaken: number;
   absorbed: number;
+  criticalHits?: number;
+  criticalDamage?: number;
+  mitigatedDamage?: number;
+  overkill?: number;
+  threat?: number;
+  damageByType?: Record<string, number>;
+  mitigationByType?: Record<string, number>;
   deaths: number;
 }
 
@@ -79,6 +90,120 @@ export interface MetricBucket {
 
 export type PullOutcome = "kill" | "wipe" | "incomplete";
 
+/** The terminal state of a boss fight, based on encounter evidence. */
+export type BossFightOutcome = PullOutcome;
+
+export type TerminalEvidenceKind =
+  | "boss-death"
+  | "phase-transition"
+  | "required-targets-dead"
+  | "victory-event"
+  | "raid-wipe"
+  | "encounter-reset"
+  | "sustained-silence"
+  | "stream-ended";
+
+export interface TerminalEvidence {
+  kind: TerminalEvidenceKind;
+  timestamp: number;
+  /** Human-readable detail retained for diagnostics and report explanations. */
+  detail: string;
+  actorIds: string[];
+  npcIds: string[];
+}
+
+export type EnemyRole = "boss" | "mechanic" | "unknown";
+
+export interface EnemyTimeline {
+  /** Stable instance key when the log provides one; otherwise the best available key. */
+  instanceId: string;
+  npcId: string;
+  name: string;
+  role: EnemyRole;
+  firstSeenAt: number;
+  engagedAt: number | null;
+  lastSeenAt: number;
+  diedAt: number | null;
+  maxHp: number | null;
+  finalHp: number | null;
+  damageTaken: number;
+  damageDealt: number;
+  absorbed?: number;
+  criticalHits?: number;
+  criticalDamage?: number;
+  mitigatedDamage?: number;
+  overkill?: number;
+  threat?: number;
+  damageByType?: Record<string, number>;
+  mitigationByType?: Record<string, number>;
+  deaths: number;
+  phases: number[];
+}
+
+export interface PlayerPhaseMetrics extends ActorRates {
+  phaseOrder: number;
+  activeMs: number;
+  firstActionAt: number | null;
+  lastActionAt: number | null;
+}
+
+export interface BossPhaseSummary {
+  order: number;
+  name: string;
+  style: string;
+  trigger: string;
+  startedAt: number;
+  endedAt: number | null;
+  triggerEvidence: TerminalEvidence | null;
+  enemies: EnemyTimeline[];
+  players: PlayerPhaseMetrics[];
+}
+
+/** Boss-centric record that replaces the flat pull view for progression reporting. */
+export interface BossFightSummary {
+  id: string;
+  index: number;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  zone: string | null;
+  difficulty: Difficulty | null;
+  groupSize: GroupSize | null;
+  encounter: EncounterRef;
+  bossEntities: EnemyTimeline[];
+  mechanicEntities: EnemyTimeline[];
+  unknownEntities: EnemyTimeline[];
+  phases: BossPhaseSummary[];
+  players: ActorRates[];
+  deaths: DeathRecord[];
+  outcome: BossFightOutcome;
+  terminalEvidence: TerminalEvidence | null;
+  buckets: MetricBucket[];
+}
+
+export interface LiveBossFightSnapshot {
+  id: string;
+  index: number;
+  startedAt: number;
+  elapsedMs: number;
+  zone: string | null;
+  difficulty: Difficulty | null;
+  groupSize: GroupSize | null;
+  encounter: EncounterRef;
+  bossEntities: EnemyTimeline[];
+  mechanicEntities: EnemyTimeline[];
+  unknownEntities: EnemyTimeline[];
+  phases: BossPhaseSummary[];
+  players: ActorRates[];
+}
+
+/** Ordered operation container used by progression and intelligence views. */
+export interface OperationFightSummary {
+  operationId: string;
+  operationName: string;
+  fights: BossFightSummary[];
+}
+
 export interface PullSummary {
   id: string;
   index: number;
@@ -95,6 +220,8 @@ export interface PullSummary {
   actors: ActorRates[];
   deaths: DeathRecord[];
   buckets: MetricBucket[];
+  /** Authoritative boss-centric representation of this pull, when catalogued. */
+  bossFight: BossFightSummary | null;
 }
 
 export interface LivePullState {
@@ -109,6 +236,7 @@ export interface LivePullState {
   encounter: EncounterRef | null;
   actors: ActorRates[];
   deaths: DeathRecord[];
+  bossFight: LiveBossFightSnapshot | null;
 }
 
 export function isPlayer(actor: Actor | null): actor is Extract<Actor, { kind: "player" }> {

@@ -14,14 +14,14 @@ export default async function ProgressionEncounterPage({ params }: { params: Pro
   const fights = reports
     .flatMap((report) => report.fights)
     .filter((fight) => {
-      const key = fight.encounter?.encounterId ?? fight.boss?.name ?? "unknown";
+      const key = fight.encounter.encounterId;
       return key === slug;
     })
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
   if (fights.length === 0) notFound();
 
-  const bossName = fights[0]?.encounter?.encounterName ?? fights[0]?.boss?.name ?? "Encounter";
+  const bossName = fights[0]?.encounter.encounterName ?? "Encounter";
   const clears = fights.filter((fight) => fight.outcome === "kill").length;
   const wipes = fights.filter((fight) => fight.outcome === "wipe").length;
   const averageDuration = fights.length > 0

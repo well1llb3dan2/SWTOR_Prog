@@ -4,8 +4,8 @@ import {
   generateReportCode,
   isReportCode,
   summariseProgression,
-  toFightSummary,
-  type FightSummaryDocument,
+  toBossFightDocument,
+  type BossFightDocument,
 } from "@swtor/db";
 
 describe("generateReportCode", () => {
@@ -61,7 +61,8 @@ describe("summariseProgression", () => {
     outcome: "kill" | "wipe" | "incomplete",
     hpPercent: number | null,
     startedAt: Date,
-  ): FightSummaryDocument => ({
+  ): BossFightDocument => ({
+    id: `fight-${encounterId}-${startedAt.getTime()}`,
     fightId: 1,
     startedAt,
     endedAt: startedAt,
@@ -69,14 +70,6 @@ describe("summariseProgression", () => {
     zone: "Darvannis",
     difficulty: "Veteran",
     groupSize: 8,
-    boss: {
-      npcId: "1",
-      name: "Dash'Roode",
-      maxHp: 100,
-      hp: hpPercent,
-      hpPercent,
-      isLikelyBoss: true,
-    },
     encounter: {
       encounterId,
       encounterName: "Dash'Roode",
@@ -89,8 +82,29 @@ describe("summariseProgression", () => {
       cleared: outcome === "kill",
     },
     outcome,
-    actors: [],
+    bossEntities: [{
+      instanceId: "1",
+      npcId: "1",
+      name: "Dash'Roode",
+      role: "boss",
+      firstSeenAt: startedAt.getTime(),
+      engagedAt: startedAt.getTime(),
+      lastSeenAt: startedAt.getTime() + 1000,
+      diedAt: outcome === "kill" ? startedAt.getTime() + 1000 : null,
+      maxHp: 100,
+      finalHp: hpPercent === null ? null : hpPercent,
+      damageTaken: 100,
+      damageDealt: 0,
+      deaths: outcome === "kill" ? 1 : 0,
+      phases: [],
+    }],
+    mechanicEntities: [],
+    unknownEntities: [],
+    phases: [],
+    players: [],
     deaths: [],
+    terminalEvidence: null,
+    buckets: [],
   });
 
   it("counts attempts and kills per encounter", () => {
@@ -105,15 +119,11 @@ describe("summariseProgression", () => {
     expect(entries[0]!.firstKillAt?.toISOString()).toBe("2026-08-15T22:20:00.000Z");
   });
 
-  it("ignores pulls that matched no encounter", () => {
-    const trash = fight("snv_dashroode", "wipe", 50, new Date());
-    expect(summariseProgression([{ ...trash, encounter: null }])).toEqual([]);
-  });
 });
 
-describe("toFightSummary", () => {
-  it("drops the time series so fight metadata stays small", () => {
-    const summary = toFightSummary(
+describe("toBossFightDocument", () => {
+  it("normalizes dates while preserving the boss-fight hierarchy", () => {
+    const summary = toBossFightDocument(
       {
         id: "p1",
         index: 1,
@@ -123,19 +133,33 @@ describe("toFightSummary", () => {
         zone: "Darvannis",
         difficulty: "Veteran",
         groupSize: 8,
-        boss: null,
-        encounter: null,
+        encounter: {
+          encounterId: "snv_dashroode",
+          encounterName: "Dash'Roode",
+          operationId: "snv",
+          operationName: "Scum and Villainy",
+          isLair: false,
+          matchedBosses: ["dash'roode"],
+          phases: [],
+          victoryEvent: "Boss defeated",
+          cleared: true,
+        },
         outcome: "wipe",
-        roster: [],
-        actors: [],
+        bossEntities: [],
+        mechanicEntities: [],
+        unknownEntities: [],
+        phases: [],
+        players: [],
         deaths: [],
+        terminalEvidence: null,
         buckets: [{ index: 0, startedAt: 1_000, damage: {}, healing: {}, damageTaken: {} }],
       },
       7,
     );
 
     expect(summary.fightId).toBe(7);
-    expect(summary).not.toHaveProperty("buckets");
+    expect(summary).toHaveProperty("buckets");
+    expect(summary).toHaveProperty("bossEntities");
     expect(summary.startedAt.getTime()).toBe(1_000);
   });
 });

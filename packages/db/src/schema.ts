@@ -1,10 +1,4 @@
-import type {
-  ActorRates,
-  BossInfo,
-  DeathRecord,
-  EncounterRef,
-  RosterEntry,
-} from "@swtor/analytics";
+import type { BossFightSummary, RosterEntry } from "@swtor/analytics";
 import type { Difficulty, GroupSize, RosterLimits, Signup } from "@swtor/shared";
 
 /**
@@ -31,25 +25,16 @@ export interface ReportDocument extends Tenanted {
   difficulty: Difficulty | null;
   groupSize: GroupSize | null;
   roster: RosterEntry[];
-  fights: FightSummaryDocument[];
+  fights: BossFightDocument[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-/** Fight metadata persisted for reporting and progression views. */
-export interface FightSummaryDocument {
+/** Date-normalized authoritative boss-fight document. */
+export interface BossFightDocument extends Omit<BossFightSummary, "startedAt" | "endedAt"> {
   fightId: number;
   startedAt: Date;
   endedAt: Date;
-  durationMs: number;
-  zone: string | null;
-  difficulty: Difficulty | null;
-  groupSize: GroupSize | null;
-  boss: BossInfo | null;
-  encounter: EncounterRef | null;
-  outcome: "kill" | "wipe" | "incomplete";
-  actors: ActorRates[];
-  deaths: DeathRecord[];
 }
 
 export type { RosterLimits, Signup, SignupStatus } from "@swtor/shared";

@@ -1,11 +1,11 @@
-import type { PullSummary } from "@swtor/analytics";
+import type { BossFightSummary } from "@swtor/analytics";
 import { io, type Socket } from "socket.io-client";
 
 export interface FeedEvent {
   guildId: string;
   reportCode: string;
   fightId: number;
-  pull: PullSummary;
+  bossFight: BossFightSummary;
 }
 
 export interface FeedClientOptions {

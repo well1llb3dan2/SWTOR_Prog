@@ -1,10 +1,10 @@
-import type { PullSummary } from "@swtor/analytics";
+import type { BossFightSummary } from "@swtor/analytics";
 import type { CombatEvent, Signup } from "@swtor/shared";
 import { MongoClient, type Collection, type Db } from "mongodb";
 import type { BucketOptions } from "./buckets.js";
 import { generateReportCode } from "./codes.js";
 import { ensureIndexes } from "./indexes.js";
-import { summariseProgression, toFightSummary, type ProgressionEntry } from "./reports.js";
+import { summariseProgression, toBossFightDocument, type ProgressionEntry } from "./reports.js";
 import { COLLECTIONS, type OperationEventDocument, type ReportDocument } from "./schema.js";
 import { hashToken, issueToken, generateLinkCode, type IssuedToken } from "./tokens.js";
 import {
@@ -251,11 +251,11 @@ export class SwtorDatabase {
     return report;
   }
 
-  /** Appends a completed pull and stores only the fight summary. */
+  /** Appends a completed BossFightSummary and stores its raw events separately. */
   async appendFight(
     reportCode: string,
     guildId: string,
-    pull: PullSummary,
+    fight: BossFightSummary,
     _events: readonly CombatEvent[],
   ): Promise<number> {
     const report = await this.reports.findOne({ code: reportCode, guildId });
@@ -266,13 +266,20 @@ export class SwtorDatabase {
     await this.reports.updateOne(
       { code: reportCode, guildId },
       {
-        $push: { fights: toFightSummary(pull, fightId) },
+        $push: { fights: toBossFightDocument(fight, fightId) },
         $set: {
-          endedAt: new Date(pull.endedAt),
-          zone: pull.zone,
-          difficulty: pull.difficulty,
-          groupSize: pull.groupSize,
-          roster: pull.roster,
+          endedAt: new Date(fight.endedAt),
+          zone: fight.zone,
+          difficulty: fight.difficulty,
+          groupSize: fight.groupSize,
+          roster: fight.players.map((player) => ({
+            playerId: player.actorId,
+            serverId: null,
+            name: player.name,
+            advancedClass: player.combatStyle ?? null,
+            discipline: player.discipline,
+            role: player.role,
+          })),
           updatedAt: new Date(),
         },
       },
