@@ -1,4 +1,4 @@
-import { BARAS_INTERRUPT_ABILITY_IDS, canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
+import { BARAS_ATTACK_TYPES_BY_ID, BARAS_INTERRUPT_ABILITY_IDS, canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import { detectSingleInstanceReset } from "./reset.js";
 import {
@@ -14,6 +14,7 @@ import {
   type EnemyPlayerMetrics,
   type EncounterRef,
   type InterruptRecord,
+    type AbilityUsageSummary,
   type LivePullState,
   type LiveBossFightSnapshot,
   type MetricBucket,
@@ -157,6 +158,7 @@ export class PullAccumulator {
   readonly #deadNpcNames = new Set<string>();
   readonly #deaths: DeathRecord[] = [];
   readonly #interrupts: InterruptRecord[] = [];
+  readonly #abilities = new Map<string, AbilityUsageSummary>();
   readonly #lastHitOnPlayer = new Map<string, KillingBlow>();
   readonly #participants = new Set<string>();
   readonly #bossThreshold: BossThreshold;
@@ -244,7 +246,7 @@ export class PullAccumulator {
           event.source,
           event.target,
           event.value,
-          event.ability?.name ?? null,
+          event.ability,
           event.threat,
         );
         this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
@@ -428,12 +430,25 @@ export class PullAccumulator {
     source: CombatEvent["source"],
     target: CombatEvent["target"],
     value: MagnitudeValue,
-    ability: string | null,
+    ability: CombatEvent["ability"],
     threat: number | null,
   ): void {
     const applied = appliedAmount(value);
     const bucket = this.#bucketFor(timestamp);
-
+    if (ability !== null) {
+      const metadata = BARAS_ATTACK_TYPES_BY_ID.get(ability.id);
+      const usage = this.#abilities.get(ability.id) ?? {
+        abilityId: ability.id,
+        name: metadata?.name ?? ability.name,
+        attackType: metadata?.attackType ?? null,
+        damageType: metadata?.damageType ?? null,
+        casts: 0,
+        damage: 0,
+      };
+      usage.casts += 1;
+      usage.damage += applied;
+      this.#abilities.set(ability.id, usage);
+    }
     if (isPlayer(source) && isNpc(target)) {
       this.#engagedNpcIds.add(target.npcId);
         this.#engagedNpcNames.add(canonicalNpcName(target.npcId, target.name).name);
@@ -484,7 +499,7 @@ export class PullAccumulator {
       this.#damageDetails(phaseState.totals, value, target.hp, threat);
       bucket.damageTaken[target.playerId] = (bucket.damageTaken[target.playerId] ?? 0) + applied;
       this.#lastHitOnPlayer.set(target.playerId, {
-        ability,
+        ability: ability?.name ?? null,
         source: source === null ? null : source.name,
       });
     }
@@ -919,6 +934,7 @@ export class PullAccumulator {
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
       counters: Object.fromEntries(this.#counters),
       interrupts: [...this.#interrupts],
+      abilities: [...this.#abilities.values()].sort((left, right) => right.damage - left.damage),
       catalogSource: NPC_CATALOG_SOURCE,
       catalogVersion: NPC_CATALOG_VERSION,
     };

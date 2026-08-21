@@ -132,6 +132,15 @@ export interface InterruptRecord {
   targetName: string | null;
 }
 
+export interface AbilityUsageSummary {
+  abilityId: string;
+  name: string;
+  attackType: string | null;
+  damageType: string | null;
+  casts: number;
+  damage: number;
+}
+
 export type EnemyRole = "boss" | "mechanic" | "unknown";
 
 export interface EnemyTimeline {
@@ -213,6 +222,7 @@ export interface BossFightSummary {
   /** Final mechanic counter values tracked for this encounter (empty when none defined). */
   counters: Record<string, number>;
   interrupts: InterruptRecord[];
+    abilities: AbilityUsageSummary[];
   catalogSource?: string;
   catalogVersion?: string;
 }
