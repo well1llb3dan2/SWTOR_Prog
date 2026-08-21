@@ -150,6 +150,15 @@ describe("resolveEncounter", () => {
     expect(resolveEncounter({ npcNames: ["Operations Training Dummy"] })).toBeNull();
     expect(resolveEncounter({ npcNames: [] })).toBeNull();
   });
+
+  it("boosts score using a verified boss npc id, not just the learned observed cache", () => {
+    const match = resolveEncounter({
+      npcNames: ["Dash'Roode"],
+      npcIds: ["3153558262251520"],
+    });
+    expect(match?.encounter.id).toBe("snv_dashroode");
+    expect(match?.score).toBeGreaterThanOrEqual(10);
+  });
 });
 
 describe("isEncounterCleared", () => {
@@ -186,6 +195,17 @@ describe("phase and entity resolution", () => {
   it("classifies Titan Probe as a Titan 6 mechanic", () => {
     const encounter = ENCOUNTERS_BY_ID.get("snv_titan_6")!;
     expect(classifyEncounterEntity(encounter, "Titan Probe")).toBe("mechanic");
+  });
+
+  it("classifies a boss by verified npc id even when the name doesn't match", () => {
+    const encounter = ENCOUNTERS_BY_ID.get("snv_dashroode")!;
+    expect(classifyEncounterEntity(encounter, "Unknown Locale Label", "3153558262251520")).toBe("boss");
+    expect(classifyEncounterEntity(encounter, "Unknown Locale Label")).toBe("unknown");
+  });
+
+  it("classifies against the catalog by npc id without a resolved encounter", () => {
+    expect(classifyCatalogEntity("Some Other Label", "3058837053505536")).toBe("boss");
+    expect(classifyCatalogEntity("Some Other Label")).toBe("unknown");
   });
 
   it("classifies Dustclaw variants as Thrasher mechanics", () => {

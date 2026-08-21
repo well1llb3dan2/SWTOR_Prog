@@ -100,6 +100,12 @@ export interface Encounter {
   wipeMechanics: WipeMechanic[];
   victoryEvent: string;
   /**
+   * Verified NPC class ids for the boss entity/entities, across all observed
+   * difficulties. Ids are stable per NPC (unlike names, which can theoretically
+   * collide across encounters); prefer these for classification when known.
+   */
+  bossNpcIds?: string[];
+  /**
    * Lowercased boss names that hold exactly one live instance per pull. A new
    * instance appearing while a prior instance of the same NPC id is still
    * alive means the attempt reset rather than wiped or was killed.

@@ -378,6 +378,7 @@ const SNV = operation("snv", [
     id: "snv_dashroode",
     name: "Dash'Roode",
     bossNames: ["dash'roode"],
+    bossNpcIds: ["3153571147153408", "3058837053505536", "3153575442120704", "3153558262251520"],
     adds: ["Voracious Xuvva", "Sand Crawler", "Environmental Shield Generator"],
     phases: [p(1, "Shield Generator Trek", "Mobile Shield Escort", "Encounter start")],
     wipeMechanics: [
@@ -392,6 +393,7 @@ const SNV = operation("snv", [
     id: "snv_titan_6",
     name: "Titan 6",
     bossNames: ["titan 6"],
+    bossNpcIds: ["3152463045591040", "3016450021261312", "3152467340558336", "3152458750623744"],
     adds: ["Titan Air-Strike Drone", "Titan Probe"],
     phases: [
       p(1, "Ground Barrage & Missile Drops", "Rock Hiding", "Encounter start"),
@@ -411,6 +413,7 @@ const SNV = operation("snv", [
     id: "snv_thrasher",
     name: "Thrasher",
     bossNames: ["thrasher"],
+    bossNpcIds: ["3154567579566080", "3045819007631360", "3154571874533376", "3154563284598784"],
     adds: ["Mercenary Demolitionist", "Corrupted Firebug", "Dustclaw Alpha", "Dustclaw Ravager", "Dustclaw Packling"],
     phases: [p(1, "Arena Engagement & Wall Snipers", "Knockup Protocol", "Encounter start")],
     wipeMechanics: [
@@ -425,6 +428,7 @@ const SNV = operation("snv", [
     id: "snv_operations_chief",
     name: "Operations Chief",
     bossNames: ["operations chief"],
+    bossNpcIds: ["3157552581836800", "3141940375715840", "3157556876804096", "3157548286869504"],
     adds: ["City Defense Turret", "Mercenary Infiltrator"],
     phases: [
       p(1, "City Sector Clearing", "Split Infiltration", "Pulling the city gates"),
@@ -442,6 +446,7 @@ const SNV = operation("snv", [
     id: "snv_olok_the_shadow",
     name: "Olok the Shadow",
     bossNames: ["olok the shadow"],
+    bossNpcIds: ["3154674953748480", "3016445726294016", "3154679248715776", "3154662068846592"],
     adds: ["War Droid", "Bodyguard Enforcer"],
     phases: [
       p(1, "Droid Auction", "Puzzle Wave", "Encounter start"),
@@ -459,6 +464,12 @@ const SNV = operation("snv", [
     id: "snv_cartel_warlords",
     name: "Cartel Warlords",
     bossNames: ["captain horic", "tu'chuk", "vilus garr", "sunder"],
+    bossNpcIds: [
+      "3054400352288768", "3032770896986112",
+      "3032753717116928", "3054408942223360",
+      "3156899746807808", "3156904041775104", "3032779486920704", "3156895451840512", "3054413237190656",
+      "3054404647256064", "3032766602018816",
+    ],
     victoryRequires: ["captain horic", "tu'chuk", "vilus garr", "sunder"],
     adds: ["Cartel Bodyguard"],
     phases: [
@@ -483,6 +494,12 @@ const SNV = operation("snv", [
     // The Kell Dragon is phase one, so seeing it identifies the encounter, but
     // only Styrak's death clears it.
     bossNames: ["dread master styrak", "kell dragon"],
+    bossNpcIds: [
+      "3067057620910080",
+      "3066945951760384", "3152407211016192", "3152441570754560", "3152445865721856",
+      "3147154466013184",
+      "3225679353085952",
+    ],
     victoryRequires: ["dread master styrak"],
     adds: ["Kell Dragon", "Apparition of Chained Torment", "Phantasm"],
     phases: [

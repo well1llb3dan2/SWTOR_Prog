@@ -41,8 +41,16 @@ function phaseThreshold(trigger: string): number | null {
   return values.length > 0 ? Math.max(...values) : null;
 }
 
-/** Classifies only entities explicitly known by the matched encounter. */
-export function classifyEncounterEntity(encounter: Encounter, name: string): EncounterEntityRole {
+/**
+ * Classifies only entities explicitly known by the matched encounter.
+ *
+ * `npcId` is checked first when the encounter has a verified `bossNpcIds`
+ * table: ids are stable per NPC, while names can theoretically collide across
+ * encounters or locales. Name matching remains the fallback for entities and
+ * encounters that don't have a curated id table yet.
+ */
+export function classifyEncounterEntity(encounter: Encounter, name: string, npcId?: string): EncounterEntityRole {
+  if (npcId !== undefined && encounter.bossNpcIds?.includes(npcId)) return "boss";
   const value = normalise(name);
   if (encounter.bossNames.some((candidate) => normalise(candidate) === value)) return "boss";
   if (encounter.adds.some((candidate) => normalise(candidate) === value || value.includes(normalise(candidate)))) return "mechanic";
@@ -53,7 +61,12 @@ export function classifyEncounterEntity(encounter: Encounter, name: string): Enc
  * Classifies against the full catalog when no specific encounter has been
  * resolved yet (for example, standalone trash timeline rows).
  */
-export function classifyCatalogEntity(name: string): EncounterEntityRole {
+export function classifyCatalogEntity(name: string, npcId?: string): EncounterEntityRole {
+  if (npcId !== undefined) {
+    for (const encounter of ENCOUNTERS) {
+      if (encounter.bossNpcIds?.includes(npcId)) return "boss";
+    }
+  }
   const value = normalise(name);
   let boss = false;
   let mechanic = false;
@@ -124,7 +137,8 @@ export function resolveEncounter(query: EncounterQuery): EncounterMatch | null {
   const zoneName = query.zoneName ?? null;
 
   const confirmed = new Set<string>();
-  for (const npcId of query.npcIds ?? []) {
+  const presentIds = new Set([...query.npcIds ?? []]);
+  for (const npcId of presentIds) {
     const encounterId = encounterIdForNpcId(npcId);
     if (encounterId !== null) confirmed.add(encounterId);
   }
@@ -136,10 +150,12 @@ export function resolveEncounter(query: EncounterQuery): EncounterMatch | null {
     if (matchedBosses.length === 0) continue;
 
     const operation = OPERATIONS_BY_ID.get(encounter.operationId)!;
+    const idConfirmed = confirmed.has(encounter.id)
+      || (encounter.bossNpcIds?.some((id) => presentIds.has(id)) ?? false);
     const score =
       matchedBosses.length * 2 +
       operationMatchesZone(operation, zoneId, zoneName) +
-      (confirmed.has(encounter.id) ? 8 : 0);
+      (idConfirmed ? 8 : 0);
 
     if (best === null || score > best.score) {
       best = { encounter, operation, matchedBosses, score };

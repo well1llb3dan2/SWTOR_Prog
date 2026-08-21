@@ -628,6 +628,7 @@ export class PullAccumulator {
       phases: match.encounter.phases,
       victoryEvent: match.encounter.victoryEvent,
       cleared: isEncounterCleared(match.encounter, this.#deadNpcNames, this.#victoryEvidence !== null),
+      bossNpcIds: match.encounter.bossNpcIds ?? [],
       singleInstanceBossNames: match.encounter.singleInstanceBossNames ?? [],
       counters: match.encounter.counters ?? [],
     };
@@ -810,12 +811,13 @@ export class PullAccumulator {
         operationId: encounter.operationId as never,
         order: 0,
         bossNames: encounter.matchedBosses,
+        bossNpcIds: encounter.bossNpcIds ?? [],
         victoryRequires: [],
         adds: encounter.adds ?? [],
         phases: encounter.phases,
         wipeMechanics: [],
         victoryEvent: encounter.victoryEvent,
-      }, enemy.name),
+      }, enemy.name, enemy.npcId),
       players: this.#enemyPlayerMetrics(enemy, phaseOrder),
     }));
     return {
@@ -829,7 +831,7 @@ export class PullAccumulator {
     const all = [...this.#enemies.values()];
     return all.map((enemy) => ({
       ...enemy,
-      role: classifyCatalogEntity(enemy.name),
+      role: classifyCatalogEntity(enemy.name, enemy.npcId),
       players: [...enemy.players.values()].map((player): EnemyPlayerMetrics => ({
         ...this.#rateValues([player.totals], Math.max(1, (enemy.diedAt ?? this.#lastActivityAt) - player.firstDamageAt))[0]!,
         firstDamageAt: player.firstDamageAt,

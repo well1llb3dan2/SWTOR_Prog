@@ -18,6 +18,8 @@ export interface EncounterRef {
   victoryEvent: string;
   /** Every required target died. */
   cleared: boolean;
+  /** Verified boss NPC class ids, when the catalog has them; preferred over name matching. */
+  bossNpcIds?: string[];
   /** Lowercased boss names eligible for single-instance reset detection. */
   singleInstanceBossNames?: string[];
   /** Mechanic counters tracked for this encounter. */
