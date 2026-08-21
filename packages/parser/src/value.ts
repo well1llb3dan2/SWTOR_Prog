@@ -1,4 +1,11 @@
-import type { DamageType, MitigationKind, ParsedValue } from "@swtor/shared";
+import { DamageTypeId, DefenseTypeId, EffectId, type DamageType, type MitigationKind, type ParsedValue } from "@swtor/shared";
+
+const DAMAGE_TYPE_BY_ID = new Map<string, DamageType>(
+  Object.entries(DamageTypeId).map(([name, id]) => [id, name as DamageType]),
+);
+const DEFENSE_TYPE_BY_ID = new Map<string, MitigationKind>(
+  Object.entries(DefenseTypeId).map(([name, id]) => [id, name as MitigationKind]),
+);
 
 const DAMAGE_TYPES = new Set<string>(["kinetic", "energy", "internal", "elemental"]);
 
@@ -14,10 +21,12 @@ const MITIGATION_KINDS = new Set<string>([
 
 const AMOUNT = /^(-?\d+(?:\.\d+)?)(\*)?/;
 const EFFECTIVE = /^\s*~\s*(-?\d+(?:\.\d+)?)/;
-const REFLECTED = /^\s*\(reflected\s*\{(\d+)\}\)/;
-const ABSORBED = /^\s*\((-?\d+(?:\.\d+)?)\s+absorbed\s*\{(\d+)\}\)/;
-const MITIGATION = /^\s*-\s*([a-zA-Z]*)\s*(?:\{(\d+)\})?/;
-const TYPE_TOKEN = /^\s*([a-zA-Z]+)\s*\{(\d+)\}/;
+/** `(<label> {id})`, label locale-dependent; classify by id, not text. */
+const REFLECTED = /^\s*\([^{}]*\{(\d+)\}\)/;
+/** `(<amount> <label> {id})`, label locale-dependent; classify by id. */
+const ABSORBED = /^\s*\((-?\d+(?:\.\d+)?)\s*[^{}]*\{(\d+)\}\)/;
+const MITIGATION = /^\s*-\s*([^{}\s][^{}]*)?\s*(?:\{(\d+)\})?/;
+const TYPE_TOKEN = /^\s*([^\s{}-][^\s{}]*)\s*\{(\d+)\}/;
 
 /**
  * Parses the parenthesised value group.
@@ -60,15 +69,17 @@ export function parseValueGroup(group: string | null): ParsedValue | null {
   let charges = false;
 
   while (rest.trim().length > 0) {
+    // Ids are stable across locales; only fall back to the label when an id
+    // is missing or not yet catalogued (never trust the label alone).
     const reflectedMatch = REFLECTED.exec(rest);
-    if (reflectedMatch !== null) {
+    if (reflectedMatch !== null && reflectedMatch[1] === EffectId.Reflected) {
       reflected = true;
       rest = rest.slice(reflectedMatch[0].length);
       continue;
     }
 
     const absorbedMatch = ABSORBED.exec(rest);
-    if (absorbedMatch !== null) {
+    if (absorbedMatch !== null && absorbedMatch[2] === EffectId.Absorbed) {
       absorbed = Number.parseFloat(absorbedMatch[1]!);
       rest = rest.slice(absorbedMatch[0].length);
       continue;
@@ -78,15 +89,16 @@ export function parseValueGroup(group: string | null): ParsedValue | null {
     if (typeMatch !== null) {
       const token = typeMatch[1]!.toLowerCase();
       if (token === "charges") charges = true;
-      else if (DAMAGE_TYPES.has(token)) damageType = token as DamageType;
+      else damageType = DAMAGE_TYPE_BY_ID.get(typeMatch[2]!) ?? (DAMAGE_TYPES.has(token) ? (token as DamageType) : damageType);
       rest = rest.slice(typeMatch[0].length);
       continue;
     }
 
     const mitigationMatch = MITIGATION.exec(rest);
     if (mitigationMatch !== null && mitigationMatch[0].trim().length > 0) {
-      const token = (mitigationMatch[1] ?? "").toLowerCase();
-      mitigation = MITIGATION_KINDS.has(token) ? (token as MitigationKind) : "unknown";
+      const token = (mitigationMatch[1] ?? "").trim().toLowerCase();
+      const byId = mitigationMatch[2] !== undefined ? DEFENSE_TYPE_BY_ID.get(mitigationMatch[2]) : undefined;
+      mitigation = byId ?? (MITIGATION_KINDS.has(token) ? (token as MitigationKind) : "unknown");
       rest = rest.slice(mitigationMatch[0].length);
       continue;
     }

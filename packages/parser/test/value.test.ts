@@ -36,7 +36,7 @@ describe("parseValueGroup", () => {
   it("reads shield mitigation together with the absorbed amount", () => {
     expect(
       parseValueGroup(
-        "1144 kinetic {836045448940873} -shield {836045448945505} (900 absorbed {836045448945511})",
+        "1144 kinetic {836045448940873} -shield {836045448945509} (900 absorbed {836045448945511})",
       ),
     ).toMatchObject({
       amount: 1144,
@@ -66,14 +66,21 @@ describe("parseValueGroup", () => {
   });
 
   it.each([
-    ["0 -parry {836045448945507}", "parry"],
+    ["0 -parry {836045448945503}", "parry"],
     ["0 -miss {836045448945502}", "miss"],
     ["0 -dodge {836045448945505}", "dodge"],
     ["0 -deflect {836045448945508}", "deflect"],
-    ["0 -immune {836045448945509}", "immune"],
-    ["0 -resist {836045448945510}", "resist"],
+    ["0 -immune {836045448945506}", "immune"],
+    ["0 -resist {836045448945507}", "resist"],
   ])("reads avoidance %s", (input, expected) => {
     expect(parseValueGroup(input)).toMatchObject({ amount: 0, mitigation: expected });
+  });
+
+  it("classifies mitigation by id even when the label is a non-English locale string", () => {
+    expect(parseValueGroup("0 -Ausweichen {836045448945505}")).toMatchObject({
+      amount: 0,
+      mitigation: "dodge",
+    });
   });
 
   it("falls back to unknown when the client omits the avoidance reason", () => {

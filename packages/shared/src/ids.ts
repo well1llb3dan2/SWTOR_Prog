@@ -55,6 +55,17 @@ export const DamageTypeId = {
   internal: "836045448940876",
 } as const;
 
+/** Avoidance/mitigation reasons that appear after `-` in a damage value group. */
+export const DefenseTypeId = {
+  miss: "836045448945502",
+  parry: "836045448945503",
+  dodge: "836045448945505",
+  immune: "836045448945506",
+  resist: "836045448945507",
+  deflect: "836045448945508",
+  shield: "836045448945509",
+} as const;
+
 /**
  * Difficulty ids are not stable across group sizes -- `8 Player Veteran` and
  * `4 Player Veteran` carry different ids. Parse the accompanying text instead
