@@ -5,6 +5,7 @@ import {
   BARAS_NPC_CATALOG,
   BARAS_INTERRUPT_ABILITY_IDS,
   BARAS_OFF_GCD_ABILITY_IDS,
+  BARAS_DISCIPLINE_ABILITIES,
   canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
@@ -30,6 +31,12 @@ describe("registry integrity", () => {
   it("loads the BARAS off-GCD ability table", () => {
     expect(BARAS_OFF_GCD_ABILITY_IDS.size).toBeGreaterThan(4000);
     expect([...BARAS_OFF_GCD_ABILITY_IDS].every((id) => /^\d{12,}$/.test(id))).toBe(true);
+  });
+
+  it("loads discipline-unique BARAS abilities with numeric ids", () => {
+    expect(BARAS_DISCIPLINE_ABILITIES.length).toBeGreaterThan(90);
+    expect(BARAS_DISCIPLINE_ABILITIES.every((entry) => /^\d{12,}$/.test(entry.abilityId))).toBe(true);
+    expect(BARAS_DISCIPLINE_ABILITIES.some((entry) => entry.discipline === "Pyrotech")).toBe(true);
   });
 
   it("uses the catalog name for known NPC ids and preserves unknown log names", () => {

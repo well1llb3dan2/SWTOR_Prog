@@ -6,5 +6,6 @@ export * from "./observed.js";
 export * from "./npc-catalog.js";
 export * from "./generated/baras-interrupts.js";
 export * from "./generated/baras-off-gcd.js";
+export * from "./generated/baras-discipline-abilities.js";
 export * from "./resolve.js";
 export * from "./conditions.js";
