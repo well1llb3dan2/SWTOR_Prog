@@ -169,6 +169,8 @@ export const encounterRefSchema = z.object({
     .max(16),
   victoryEvent: z.string().max(256),
   cleared: z.boolean(),
+  catalogSource: z.string().max(64).optional(),
+  catalogVersion: z.string().max(128).optional(),
 });
 
 export const bossInfoSchema = z.object({
@@ -201,7 +203,7 @@ export const meterSnapshotSchema = z.object({
     groupSize: groupSizeSchema,
     encounter: encounterRefSchema,
     bossEntities: z.array(z.object({
-      instanceId: z.string(), npcId: z.string(), name: z.string(), role: z.enum(["boss", "mechanic", "unknown"]),
+      instanceId: z.string(), npcId: z.string(), name: z.string(), rawName: z.string().optional(), identitySource: z.enum(["catalog", "log"]).optional(), role: z.enum(["boss", "mechanic", "unknown"]),
       firstSeenAt: z.number(), engagedAt: z.number().nullable(), lastSeenAt: z.number(), diedAt: z.number().nullable(),
       maxHp: z.number().nullable(), finalHp: z.number().nullable(), damageTaken: z.number(), damageDealt: z.number(),
       absorbed: z.number().optional(), criticalHits: z.number().optional(), criticalDamage: z.number().optional(),
@@ -215,6 +217,8 @@ export const meterSnapshotSchema = z.object({
       triggerEvidence: z.any().nullable(), enemies: z.array(z.any()), players: z.array(z.any()),
     }).passthrough()).max(32),
     players: z.array(z.any()).max(64),
+    catalogSource: z.string().max(64).optional(),
+    catalogVersion: z.string().max(128).optional(),
   }).strict().nullable(),
 });
 

@@ -26,6 +26,8 @@ export interface EncounterRef {
   singleInstanceBossNames?: string[];
   /** Mechanic counters tracked for this encounter. */
   counters?: CounterDefinition[];
+  catalogSource?: string;
+  catalogVersion?: string;
 }
 
 export interface RosterEntry {
@@ -127,6 +129,9 @@ export interface EnemyTimeline {
   instanceId: string;
   npcId: string;
   name: string;
+  /** Original localized name emitted by the combat log, when it differs from name. */
+  rawName?: string;
+  identitySource?: "catalog" | "log";
   role: EnemyRole;
   firstSeenAt: number;
   engagedAt: number | null;
@@ -197,6 +202,8 @@ export interface BossFightSummary {
   buckets: MetricBucket[];
   /** Final mechanic counter values tracked for this encounter (empty when none defined). */
   counters: Record<string, number>;
+  catalogSource?: string;
+  catalogVersion?: string;
 }
 
 export interface LiveBossFightSnapshot {

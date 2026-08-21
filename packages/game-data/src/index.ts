@@ -3,5 +3,6 @@ export * from "./operations.js";
 export * from "./encounters.js";
 export * from "./defensives.js";
 export * from "./observed.js";
+export * from "./npc-catalog.js";
 export * from "./resolve.js";
 export * from "./conditions.js";

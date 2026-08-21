@@ -1,4 +1,4 @@
-import { classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
+import { canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import { detectSingleInstanceReset } from "./reset.js";
 import {
@@ -56,6 +56,8 @@ interface EnemyState {
   instanceId: string;
   npcId: string;
   name: string;
+  rawName: string;
+  identitySource: "catalog" | "log";
   firstSeenAt: number;
   engagedAt: number | null;
   lastSeenAt: number;
@@ -284,9 +286,10 @@ export class PullAccumulator {
         this.#peakPlayerMaxHp = actor.maxHp;
       }
       if (!isNpc(actor) || actor.maxHp === null || actor.maxHp <= 0) continue;
+      const identity = canonicalNpcName(actor.npcId, actor.name);
       const existing = this.#npcs.get(actor.npcId);
       if (existing === undefined || actor.maxHp > existing.maxHp) {
-        this.#npcs.set(actor.npcId, { name: actor.name, maxHp: actor.maxHp, hp: actor.hp });
+        this.#npcs.set(actor.npcId, { name: identity.name, maxHp: actor.maxHp, hp: actor.hp });
       } else {
         existing.hp = actor.hp;
       }
@@ -296,7 +299,9 @@ export class PullAccumulator {
         this.#enemies.set(instanceId, {
           instanceId,
           npcId: actor.npcId,
-          name: actor.name,
+          name: identity.name,
+          rawName: actor.name,
+          identitySource: identity.source,
           firstSeenAt: event.timestamp,
           engagedAt: null,
           lastSeenAt: event.timestamp,
@@ -494,7 +499,7 @@ export class PullAccumulator {
 
     if (isNpc(victim)) {
       this.#deadNpcIds.add(victim.npcId);
-      this.#deadNpcNames.add(victim.name);
+      this.#deadNpcNames.add(canonicalNpcName(victim.npcId, victim.name).name);
       const enemy = this.#enemyFor(victim, event.timestamp);
       enemy.diedAt = event.timestamp;
       enemy.finalHp = 0;
@@ -521,13 +526,14 @@ export class PullAccumulator {
 
   #enemyFor(actor: Extract<NonNullable<CombatEvent["source"]>, { kind: "npc" }>, timestamp: number): EnemyState {
     const instanceId = actor.instanceId ?? actor.npcId;
+    const identity = canonicalNpcName(actor.npcId, actor.name);
     let enemy = this.#enemies.get(instanceId);
     if (enemy === undefined) {
       if (this.#resetDetectedAt === null) {
         const singleInstanceBossNames = this.#encounter()?.singleInstanceBossNames ?? [];
         const isReset = detectSingleInstanceReset(
           [...this.#enemies.values()].map((e) => ({ npcId: e.npcId, instanceId: e.instanceId, diedAt: e.diedAt })),
-          { npcId: actor.npcId, instanceId, name: actor.name },
+          { npcId: actor.npcId, instanceId, name: identity.name },
           singleInstanceBossNames,
         );
         if (isReset) this.#resetDetectedAt = timestamp;
@@ -535,7 +541,9 @@ export class PullAccumulator {
       enemy = {
         instanceId,
         npcId: actor.npcId,
-        name: actor.name,
+        name: identity.name,
+        rawName: actor.name,
+        identitySource: identity.source,
         firstSeenAt: timestamp,
         engagedAt: timestamp,
         lastSeenAt: timestamp,
@@ -632,6 +640,8 @@ export class PullAccumulator {
       addNpcIds: match.encounter.addNpcIds ?? [],
       singleInstanceBossNames: match.encounter.singleInstanceBossNames ?? [],
       counters: match.encounter.counters ?? [],
+      catalogSource: NPC_CATALOG_SOURCE,
+      catalogVersion: NPC_CATALOG_VERSION,
     };
   }
 
@@ -894,6 +904,8 @@ export class PullAccumulator {
       terminalEvidence,
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
       counters: Object.fromEntries(this.#counters),
+      catalogSource: NPC_CATALOG_SOURCE,
+      catalogVersion: NPC_CATALOG_VERSION,
     };
   }
 

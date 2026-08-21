@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ENCOUNTERS,
   ENCOUNTERS_BY_ID,
+  canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
   classifyCatalogEntity,
@@ -12,6 +13,11 @@ import {
 } from "@swtor/game-data";
 
 describe("registry integrity", () => {
+  it("uses the catalog name for known NPC ids and preserves unknown log names", () => {
+    expect(canonicalNpcName("3153558262251520", "UNKNOWN")).toEqual({ name: "Dash'Roode", source: "catalog" });
+    expect(canonicalNpcName("not-in-catalog", "UNKNOWN")).toEqual({ name: "UNKNOWN", source: "log" });
+  });
+
   it("gives every encounter a unique id and a known operation", () => {
     const ids = ENCOUNTERS.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
