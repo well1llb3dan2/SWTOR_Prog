@@ -189,6 +189,16 @@ describe("resolveEncounter", () => {
     expect(match?.encounter.id).toBe("snv_dashroode");
     expect(match?.score).toBeGreaterThanOrEqual(10);
   });
+
+  it("resolves an encounter from a verified boss npc id when the logged name is unknown", () => {
+    const match = resolveEncounter({
+      zoneName: "Asation",
+      npcNames: ["UNKNOWN"],
+      npcIds: ["3010428477112320"],
+    });
+    expect(match?.encounter.id).toBe("tfb_writhing_horror");
+    expect(match?.operation.name).toBe("Terror From Beyond");
+  });
 });
 
 describe("isEncounterCleared", () => {

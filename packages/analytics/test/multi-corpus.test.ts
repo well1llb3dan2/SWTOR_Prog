@@ -14,7 +14,7 @@ const LOGS = [
   {
     file: "combat_2026-08-15_20_21_10_493955.txt",
     minimumPulls: 12,
-    bossNames: ["Bonethrasher", "Jarg & Sorno", "Foreman Crusher", "G4-B3 Heavy Fabricator", "Karagga the Unyielding", "Annihilation Droid XRR-3", "Gharj", "Soa"],
+    bossNames: ["Bonethrasher", "Jarg & Sorno", "Foreman Crusher", "G4-B3 Heavy Fabricator", "Karagga the Unyielding", "Annihilation Droid XRR-3", "Gharj", "The Infernal Council", "Soa"],
     minimumWipes: 1,
   },
   {

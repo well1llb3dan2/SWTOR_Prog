@@ -137,13 +137,13 @@ function operationMatchesZone(
  */
 export function resolveEncounter(query: EncounterQuery): EncounterMatch | null {
   const present = new Set([...query.npcNames].map(normalise));
-  if (present.size === 0) return null;
+  const presentIds = new Set([...query.npcIds ?? []]);
+  if (present.size === 0 && presentIds.size === 0) return null;
 
   const zoneId = query.zoneId ?? null;
   const zoneName = query.zoneName ?? null;
 
   const confirmed = new Set<string>();
-  const presentIds = new Set([...query.npcIds ?? []]);
   for (const npcId of presentIds) {
     const encounterId = encounterIdForNpcId(npcId);
     if (encounterId !== null) confirmed.add(encounterId);
@@ -153,11 +153,10 @@ export function resolveEncounter(query: EncounterQuery): EncounterMatch | null {
 
   for (const encounter of ENCOUNTERS) {
     const matchedBosses = encounter.bossNames.filter((name) => present.has(name));
-    if (matchedBosses.length === 0) continue;
-
     const operation = OPERATIONS_BY_ID.get(encounter.operationId)!;
     const idConfirmed = confirmed.has(encounter.id)
       || (encounter.bossNpcIds?.some((id) => presentIds.has(id)) ?? false);
+    if (matchedBosses.length === 0 && !idConfirmed) continue;
     const score =
       matchedBosses.length * 2 +
       operationMatchesZone(operation, zoneId, zoneName) +
@@ -176,11 +175,16 @@ export function isEncounterCleared(
   encounter: Encounter,
   deadNpcNames: Iterable<string>,
   victoryEvidenceObserved = false,
+  deadNpcIds: Iterable<string> = [],
 ): boolean {
   if (victoryEvidenceObserved) return true;
   const dead = new Set([...deadNpcNames].map(normalise));
   const required =
     encounter.victoryRequires.length > 0 ? encounter.victoryRequires : encounter.bossNames;
+  const deadIds = new Set(deadNpcIds);
+  const idCleared = encounter.bossNpcIds?.some((id) => deadIds.has(id)) ?? false;
+
+  if (idCleared && required.every((name) => !dead.has(name))) return true;
 
   return encounter.victoryRequires.length > 0
     ? required.every((name) => dead.has(name))
