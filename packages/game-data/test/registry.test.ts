@@ -4,6 +4,7 @@ import {
   ENCOUNTERS_BY_ID,
   BARAS_NPC_CATALOG,
   BARAS_INTERRUPT_ABILITY_IDS,
+  BARAS_OFF_GCD_ABILITY_IDS,
   canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
@@ -24,6 +25,11 @@ describe("registry integrity", () => {
   it("loads the BARAS interrupt ability table", () => {
     expect(BARAS_INTERRUPT_ABILITY_IDS.size).toBeGreaterThan(0);
     expect(BARAS_INTERRUPT_ABILITY_IDS.has("987747988799488")).toBe(true);
+  });
+
+  it("loads the BARAS off-GCD ability table", () => {
+    expect(BARAS_OFF_GCD_ABILITY_IDS.size).toBeGreaterThan(4000);
+    expect([...BARAS_OFF_GCD_ABILITY_IDS].every((id) => /^\d{12,}$/.test(id))).toBe(true);
   });
 
   it("uses the catalog name for known NPC ids and preserves unknown log names", () => {

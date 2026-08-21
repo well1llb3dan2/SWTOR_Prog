@@ -5,5 +5,6 @@ export * from "./defensives.js";
 export * from "./observed.js";
 export * from "./npc-catalog.js";
 export * from "./generated/baras-interrupts.js";
+export * from "./generated/baras-off-gcd.js";
 export * from "./resolve.js";
 export * from "./conditions.js";
