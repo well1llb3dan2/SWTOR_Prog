@@ -1,5 +1,6 @@
 import type { Difficulty, GroupSize } from "@swtor/shared";
 import type { Condition } from "./conditions.js";
+import type { EncounterTrigger } from "./triggers.js";
 
 export type OperationId =
   | "ev"
@@ -48,6 +49,8 @@ export type OperationId =
   | "fp_sos";
 
 export interface EncounterPhase {
+  /** Stable definition ID used by typed phase/counter/timer references. */
+  id?: string;
   order: number;
   name: string;
   /** Shorthand for how the phase plays, e.g. "Add Wave", "Burn". */
@@ -58,16 +61,95 @@ export interface EncounterPhase {
   deathTrigger?: string;
   /** Must evaluate true (against live counters/phase state) for this phase to trigger. */
   guard?: Condition;
+  /** ID-first executable trigger imported from BARAS. */
+  startTrigger?: EncounterTrigger;
+  /** Explicit phase completion; otherwise the next phase start ends this phase. */
+  endTrigger?: EncounterTrigger;
+  /** Counter IDs reset when this phase starts. */
+  resetsCounters?: string[];
+  /** Phase ID that must have immediately preceded this phase. */
+  precededBy?: string;
+  /** Additional BARAS conditions evaluated before phase entry. */
+  conditions?: Condition[];
+  /** Optional difficulty scope; empty or omitted means every difficulty. */
+  difficulties?: Difficulty[];
 }
 
 /** A per-encounter tally driven by ability/effect events, for mechanic counting and phase guards. */
 export interface CounterDefinition {
   id: string;
   name: string;
+  initialValue?: number;
+  incrementOn?: EncounterTrigger;
+  decrementOn?: EncounterTrigger;
+  resetOn?: EncounterTrigger;
+  trackEffectStacks?: {
+    effects?: Array<string | number>;
+    target?: unknown;
+    aggregation?: string;
+  };
   /** Ability name (case-insensitive substring match) that increments this counter. */
   incrementOnAbility?: string;
   /** Effect name (case-insensitive substring match) that increments this counter. */
   incrementOnEffect?: string;
+}
+
+export interface EncounterTimerDefinition {
+  id: string;
+  name: string;
+  displayText?: string;
+  trigger: EncounterTrigger;
+  cancelTrigger?: EncounterTrigger;
+  durationMs: number;
+  enabled: boolean;
+  isAlert: boolean;
+  canRefresh: boolean;
+  conditions: Condition[];
+  phaseIds: string[];
+  difficulties: Difficulty[];
+  groupSize?: GroupSize;
+  showAtMs?: number;
+  iconAbilityId?: string;
+}
+
+export interface ShieldHpRule {
+  total: number;
+  difficulties: Difficulty[];
+  groupSize?: GroupSize;
+}
+
+export interface EncounterShieldDefinition {
+  id: string;
+  label: string;
+  targetNpcIds: string[];
+  startTrigger: EncounterTrigger;
+  endTrigger: EncounterTrigger;
+  hp: ShieldHpRule[];
+}
+
+export interface EncounterChallengeDefinition {
+  id: string;
+  name: string;
+  metric: string;
+  enabled: boolean;
+  columns?: string;
+  difficulties: Difficulty[];
+  conditions: Record<string, unknown>[];
+}
+
+export interface BarasEncounterDefinition {
+  id: string;
+  name: string;
+  source: string;
+  difficulties: Difficulty[];
+  bossNpcIds: string[];
+  entityNpcIds: Record<string, string[]>;
+  phases: EncounterPhase[];
+  counters: CounterDefinition[];
+  timers: EncounterTimerDefinition[];
+  shields: EncounterShieldDefinition[];
+  challenges: EncounterChallengeDefinition[];
+  victoryTrigger?: EncounterTrigger;
 }
 
 export interface WipeMechanic {
@@ -115,6 +197,9 @@ export interface Encounter {
   singleInstanceBossNames?: string[];
   /** Mechanic counters tracked for this encounter (empty for most). */
   counters?: CounterDefinition[];
+  timers?: EncounterTimerDefinition[];
+  shields?: EncounterShieldDefinition[];
+  challenges?: EncounterChallengeDefinition[];
 }
 
 export interface Operation {

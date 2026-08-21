@@ -4,3 +4,4 @@ export * from "./session.js";
 export * from "./deathAudit.js";
 export * from "./operations.js";
 export * from "./reset.js";
+export * from "./encounter-runtime.js";

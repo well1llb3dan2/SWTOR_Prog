@@ -37,7 +37,10 @@ const DEFAULTS = {
 } as const;
 
 function isActivity(event: CombatEvent): boolean {
-  return event.type === "damage" || event.type === "heal" || event.type === "death";
+  return event.type === "damage"
+    || event.type === "heal"
+    || event.type === "death"
+    || (event.type === "ability" && event.phase === "activate" && event.source?.kind === "player");
 }
 
 /**

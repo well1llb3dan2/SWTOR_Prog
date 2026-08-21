@@ -7,6 +7,8 @@ import {
   BARAS_OFF_GCD_ABILITY_IDS,
   BARAS_DISCIPLINE_ABILITIES,
   BARAS_ATTACK_TYPES,
+  BARAS_ENCOUNTER_DEFINITIONS,
+  BARAS_ENCOUNTER_DEFINITIONS_BY_ID,
   canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
@@ -14,6 +16,7 @@ import {
   classifyEncounterEntity,
   resolveEncounterPhase,
   resolveEncounter,
+  resolveBarasEncounterDefinition,
   supportsDifficulty,
 } from "@swtor/game-data";
 
@@ -44,6 +47,21 @@ describe("registry integrity", () => {
     expect(BARAS_ATTACK_TYPES.length).toBeGreaterThan(9000);
     expect(BARAS_ATTACK_TYPES.every((entry) => /^\d{12,}$/.test(entry.abilityId))).toBe(true);
     expect(BARAS_ATTACK_TYPES.some((entry) => entry.damageType === "Kinetic")).toBe(true);
+  });
+
+  it("loads executable BARAS phases, counters, timers, shields, and challenges", () => {
+    expect(BARAS_ENCOUNTER_DEFINITIONS.length).toBeGreaterThan(200);
+    expect(BARAS_ENCOUNTER_DEFINITIONS_BY_ID.get("titan6")?.phases.some((phase) => phase.id === "titan_6_burn")).toBe(true);
+    expect(BARAS_ENCOUNTER_DEFINITIONS_BY_ID.get("cartel_warlords")?.counters.some((counter) => counter.id === "cartel_warlords_boss_deaths")).toBe(true);
+    expect(BARAS_ENCOUNTER_DEFINITIONS_BY_ID.get("dashroode")?.timers.length).toBeGreaterThan(0);
+    expect(BARAS_ENCOUNTER_DEFINITIONS_BY_ID.get("kanoth")?.shields.some((shield) => shield.label === "Surging Growth")).toBe(true);
+    expect(BARAS_ENCOUNTER_DEFINITIONS.some((definition) => definition.challenges.length > 0)).toBe(true);
+  });
+
+  it("resolves BARAS mechanics from an authoritative boss NPC id", () => {
+    expect(resolveBarasEncounterDefinition(["3153558262251520"])?.id).toBe("dashroode");
+    expect(resolveBarasEncounterDefinition(["4494876548792320"])?.id).toBe("kanoth");
+    expect(resolveBarasEncounterDefinition(["not-known"])).toBeNull();
   });
 
   it("uses the catalog name for known NPC ids and preserves unknown log names", () => {

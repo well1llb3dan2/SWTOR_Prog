@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CombatSession, analyzeEvents } from "@swtor/analytics";
+import { BARAS_OFF_GCD_ABILITY_IDS } from "@swtor/game-data";
 import type { CombatEvent, MagnitudeValue } from "@swtor/shared";
 
 const LOCAL = {
@@ -82,12 +83,27 @@ const damage = (
   source: CombatEvent["source"],
   target: CombatEvent["target"],
   amount = 1000,
-): CombatEvent => ({
+): Extract<CombatEvent, { type: "damage" }> => ({
   ...base(t),
   type: "damage",
   source,
   target,
   value: magnitude(amount),
+});
+
+const ability = (
+  t: number,
+  source: CombatEvent["source"],
+  target: CombatEvent["target"],
+  id: string,
+  name: string,
+): CombatEvent => ({
+  ...base(t),
+  type: "ability",
+  source,
+  target,
+  ability: { id, name },
+  phase: "activate",
 });
 
 const heal = (
@@ -329,6 +345,57 @@ describe("pull metrics", () => {
     });
     expect(enemy.players[0]).toMatchObject({ actorId: "1", damage: 80, dps: 80 / 4 });
   });
+
+  it("counts ability activations separately from their damage hits", () => {
+    const abilityRef = { id: "42", name: "Channeled Attack" };
+    const secondTarget = { ...TRASH, npcId: "trash-2", instanceId: "trash-2" };
+    const criticalHit: CombatEvent = {
+      ...damage(3_000, LOCAL, BOSS, 200),
+      ability: abilityRef,
+      value: { ...magnitude(200), critical: true },
+    };
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      ability(1_000, LOCAL, BOSS, abilityRef.id, abilityRef.name),
+      { ...damage(2_000, LOCAL, BOSS, 100), ability: abilityRef },
+      criticalHit,
+      { ...damage(4_000, LOCAL, secondTarget, 300), ability: abilityRef },
+      death(5_000, BOSS),
+      death(6_000, secondTarget),
+    ]);
+
+    expect(pulls[0]!.bossFight!.abilities).toContainEqual(expect.objectContaining({
+      abilityId: abilityRef.id,
+      casts: 1,
+      hits: 3,
+      misses: 0,
+      criticalHits: 1,
+      targets: 2,
+      damage: 600,
+      players: [expect.objectContaining({ playerId: LOCAL.playerId, casts: 1, hits: 3, targets: 2, damage: 600 })],
+      targetBreakdown: expect.arrayContaining([
+        expect.objectContaining({ targetNpcId: BOSS.npcId, hits: 2, damage: 300 }),
+        expect.objectContaining({ targetNpcId: secondTarget.npcId, hits: 1, damage: 300 }),
+      ]),
+      phases: [expect.objectContaining({ phaseOrder: 1, casts: 1, hits: 3, targets: 2, damage: 600 })],
+    }));
+  });
+
+  it("computes APM and the on-GCD/off-GCD action split from activations", () => {
+    const offGcdId = BARAS_OFF_GCD_ABILITY_IDS.values().next().value!;
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      ability(1_000, LOCAL, BOSS, offGcdId, "Off GCD"),
+      ability(2_000, LOCAL, BOSS, "not-off-gcd", "On GCD"),
+      damage(3_000, LOCAL, BOSS, 100),
+      damage(5_000, LOCAL, BOSS, 100),
+      death(6_000, BOSS),
+    ]);
+    const actor = pulls[0]!.actors.find((entry) => entry.actorId === LOCAL.playerId)!;
+
+    expect(actor).toMatchObject({ actions: 2, offGcdActions: 1, onGcdActions: 1 });
+    expect(actor.apm).toBeCloseTo(24, 5);
+  });
 });
 
 describe("enemy timeline", () => {
@@ -381,6 +448,26 @@ describe("event-driven phase intervals", () => {
     expect(phases[2]!.triggerEvidence?.timestamp).toBe(9_000);
     expect(phases.map((phase) => phase.players[0]?.damage)).toEqual([1_000, 2_000, 3_000]);
     expect(phases.map((phase) => phase.players[0]?.activeMs)).toEqual([0, 0, 0]);
+  });
+
+  it("executes imported BARAS phases for a catalogued boss NPC id", () => {
+    const titan = {
+      ...BOSS,
+      name: "Localized Titan",
+      npcId: "3152463045591040",
+      instanceId: "titan-1",
+      maxHp: 10_000_000,
+    };
+    const pulls = analyzeEvents([
+      areaEntered(0),
+      damage(1_000, LOCAL, { ...titan, hp: 10_000_000 }, 1_000),
+      damage(5_000, LOCAL, { ...titan, hp: 1_900_000 }, 1_000),
+      death(6_000, titan),
+    ]);
+
+    expect(pulls[0]!.encounter?.encounterId).toBe("snv_titan_6");
+    expect(pulls[0]!.bossFight?.phases.map((phase) => phase.name)).toEqual(["Titan 6", "Burn"]);
+    expect(pulls[0]!.bossFight?.phases.map((phase) => phase.startedAt)).toEqual([1_000, 5_000]);
   });
 });
 

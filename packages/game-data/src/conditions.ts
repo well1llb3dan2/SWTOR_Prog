@@ -11,7 +11,9 @@ export type ConditionOperator = "eq" | "ne" | "lt" | "lte" | "gt" | "gte";
 
 export type Condition =
   | { kind: "counterCompare"; counterId: string; operator: ConditionOperator; value: number }
-  | { kind: "phaseActive"; phaseOrders: number[] }
+  | { kind: "counterCompareCounter"; counterId: string; operator: ConditionOperator; otherCounterId: string }
+  | { kind: "phaseActive"; phaseOrders?: number[]; phaseIds?: string[] }
+  | { kind: "timerTimeRemaining"; timerId: string; operator: ConditionOperator; seconds: number }
   | { kind: "allOf"; conditions: Condition[] }
   | { kind: "anyOf"; conditions: Condition[] }
   | { kind: "not"; condition: Condition };
@@ -19,6 +21,8 @@ export type Condition =
 export interface ConditionContext {
   getCounter(counterId: string): number;
   currentPhaseOrder: number;
+  currentPhaseId?: string | null;
+  getTimerRemainingMs?(timerId: string): number;
 }
 
 function compare(value: number, operator: ConditionOperator, target: number): boolean {
@@ -42,8 +46,13 @@ export function evaluateCondition(condition: Condition, ctx: ConditionContext): 
   switch (condition.kind) {
     case "counterCompare":
       return compare(ctx.getCounter(condition.counterId), condition.operator, condition.value);
+    case "counterCompareCounter":
+      return compare(ctx.getCounter(condition.counterId), condition.operator, ctx.getCounter(condition.otherCounterId));
     case "phaseActive":
-      return condition.phaseOrders.includes(ctx.currentPhaseOrder);
+      return (condition.phaseOrders?.includes(ctx.currentPhaseOrder) ?? false)
+        || (ctx.currentPhaseId !== null && ctx.currentPhaseId !== undefined && (condition.phaseIds?.includes(ctx.currentPhaseId) ?? false));
+    case "timerTimeRemaining":
+      return compare((ctx.getTimerRemainingMs?.(condition.timerId) ?? 0) / 1000, condition.operator, condition.seconds);
     case "allOf":
       return condition.conditions.every((c) => evaluateCondition(c, ctx));
     case "anyOf":

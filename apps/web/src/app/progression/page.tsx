@@ -14,7 +14,8 @@ export default async function ProgressionPage() {
   const safeReports = Array.isArray(reports) ? reports : [];
   const bossFights = safeReports.flatMap((report) => {
     const fights = Array.isArray(report.fights) ? report.fights : [];
-    return fights.filter((fight) => fight.bossEntities.length > 0);
+    return fights.filter((fight): fight is typeof fight & { encounter: NonNullable<typeof fight.encounter> } =>
+      fight.encounter !== null);
   });
 
   const encounterSummary = new Map<string, { name: string; kills: number; wipes: number }>();

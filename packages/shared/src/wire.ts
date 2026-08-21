@@ -232,8 +232,46 @@ export const meterSnapshotSchema = z.object({
       attackType: z.string().max(32).nullable(),
       damageType: z.string().max(32).nullable(),
       casts: z.number().int().nonnegative(),
+      hits: z.number().int().nonnegative(),
+      misses: z.number().int().nonnegative(),
+      criticalHits: z.number().int().nonnegative(),
+      targets: z.number().int().nonnegative(),
       damage: z.number().nonnegative(),
+      players: z.array(z.object({
+        playerId: z.string().max(64), name: z.string().max(128), casts: z.number().int().nonnegative(), hits: z.number().int().nonnegative(),
+        misses: z.number().int().nonnegative(), criticalHits: z.number().int().nonnegative(), targets: z.number().int().nonnegative(), damage: z.number().nonnegative(),
+        firstCastAt: z.number().int().nonnegative().nullable(), lastCastAt: z.number().int().nonnegative().nullable(), averageTimeBetweenMs: z.number().nonnegative(),
+        minimumTimeBetweenMs: z.number().nonnegative(), maximumTimeBetweenMs: z.number().nonnegative(),
+      }).strict()).max(64),
+      targetBreakdown: z.array(z.object({
+        targetId: z.string().max(128), targetNpcId: z.string().max(64).nullable(), name: z.string().max(128), casts: z.number().int().nonnegative(),
+        hits: z.number().int().nonnegative(), misses: z.number().int().nonnegative(), criticalHits: z.number().int().nonnegative(), targets: z.number().int().nonnegative(), damage: z.number().nonnegative(),
+      }).strict()).max(512),
+      phases: z.array(z.object({
+        phaseOrder: z.number().int().positive(), phaseId: z.string().max(128).nullable(), segmentIndex: z.number().int().nonnegative(), casts: z.number().int().nonnegative(),
+        hits: z.number().int().nonnegative(), misses: z.number().int().nonnegative(), criticalHits: z.number().int().nonnegative(), targets: z.number().int().nonnegative(), damage: z.number().nonnegative(),
+      }).strict()).max(128),
     }).strict()).max(2048).optional(),
+    challenges: z.array(z.object({
+      id: z.string().max(128), name: z.string().max(128), metric: z.string().max(64), value: z.number(), eventCount: z.number().int().nonnegative(),
+      durationMs: z.number().int().nonnegative(), perSecond: z.number().nullable(),
+      players: z.array(z.object({
+        playerId: z.string().max(64), name: z.string().max(128), value: z.number(), percent: z.number(), perSecond: z.number().nullable(),
+      }).strict()).max(64),
+    }).strict()).max(128).optional(),
+    mechanics: z.object({
+      timerEvents: z.array(z.object({
+        timerId: z.string().max(128), name: z.string().max(128), event: z.enum(["started", "expired", "canceled"]), timestamp: z.number().int().nonnegative(), expiresAt: z.number().int().nonnegative().nullable(),
+      }).strict()).max(10000),
+      effectWindows: z.array(z.object({
+        effectId: z.string().max(64), effectName: z.string().max(128), sourceId: z.string().max(128).nullable(), targetId: z.string().max(128),
+        appliedAt: z.number().int().nonnegative(), removedAt: z.number().int().nonnegative().nullable(), charges: z.number().int().nullable(),
+      }).strict()).max(10000),
+      shieldWindows: z.array(z.object({
+        id: z.string().max(256), targetId: z.string().max(128), initial: z.number().nonnegative(), remaining: z.number().nonnegative(),
+        startedAt: z.number().int().nonnegative(), endedAt: z.number().int().nonnegative().nullable(),
+      }).strict()).max(2048),
+    }).strict().optional(),
     catalogSource: z.string().max(64).optional(),
     catalogVersion: z.string().max(128).optional(),
   }).strict().nullable(),

@@ -13,10 +13,8 @@ export default async function ProgressionEncounterPage({ params }: { params: Pro
 
   const fights = reports
     .flatMap((report) => report.fights)
-    .filter((fight) => {
-      const key = fight.encounter.encounterId;
-      return key === slug;
-    })
+    .filter((fight): fight is typeof fight & { encounter: NonNullable<typeof fight.encounter> } =>
+      fight.encounter?.encounterId === slug)
     .sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
 
   if (fights.length === 0) notFound();

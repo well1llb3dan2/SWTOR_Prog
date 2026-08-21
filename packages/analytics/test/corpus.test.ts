@@ -85,9 +85,8 @@ describe("Scum and Villainy sample", () => {
     const titan = bossPulls[1]!.encounter!;
     expect(titan.encounterName).toBe("Titan 6");
     expect(titan.phases.map((p) => p.name)).toEqual([
-      "Ground Barrage & Missile Drops",
-      "Launch Sequence",
-      "Burn Enrage",
+      "Titan 6",
+      "Burn",
     ]);
     expect(titan.victoryEvent).toBe("Boss defeated");
   });

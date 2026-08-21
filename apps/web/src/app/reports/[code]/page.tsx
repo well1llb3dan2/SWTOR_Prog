@@ -20,7 +20,7 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
   if (report === null) notFound();
 
   const kills = report.fights.filter((f) => f.outcome === "kill").length;
-  const bossFights = report.fights.filter((f) => f.bossEntities.length > 0);
+  const bossFights = report.fights.filter((fight) => fight.encounter !== null);
   const wipes = report.fights.filter((f) => f.outcome === "wipe").length;
   const incomplete = report.fights.filter((f) => f.outcome === "incomplete").length;
   const totalDeaths = report.fights.reduce((sum, fight) => sum + fight.deaths.length, 0);
@@ -76,7 +76,7 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
           <div className="mt-4 rounded border border-[var(--color-line)] p-4">
             <p className="text-[10px] uppercase tracking-[0.16em] text-[var(--color-muted)]">Primary highlight</p>
             <p className="mt-2 text-sm uppercase">
-              {highlightFight.encounter.encounterName}
+              {highlightFight.encounter?.encounterName ?? highlightFight.boss?.name ?? "Combat"}
             </p>
             <p className="mt-2 text-sm text-[var(--color-muted)]">
               {highlightFight.outcome === "kill"
@@ -129,12 +129,12 @@ export default async function ReportPage({ params }: { params: Promise<{ code: s
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm">
-                    {fight.encounter.encounterName}
+                    {fight.encounter?.encounterName ?? fight.boss?.name ?? "Combat"}
                   </span>
                   <span className="block truncate text-xs text-[var(--color-muted)]">
                     {fight.deaths.length} death{fight.deaths.length === 1 ? "" : "s"}
-                    {fight.outcome !== "kill" && fight.bossEntities[0]
-                      ? ` · boss at ${formatPercent(fight.bossEntities[0].maxHp && fight.bossEntities[0].finalHp !== null ? (fight.bossEntities[0].finalHp / fight.bossEntities[0].maxHp) * 100 : null, 1)}`
+                    {fight.outcome !== "kill" && fight.boss !== null
+                      ? ` · boss at ${formatPercent(fight.boss.hpPercent, 1)}`
                       : ""}
                   </span>
                 </span>

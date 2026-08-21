@@ -131,7 +131,7 @@ export default function LivePage({ params }: { params: Promise<{ sessionId: stri
                   <span className="truncate">{pull.bossFight.encounter.encounterName}</span>
                   <span className="flex shrink-0 items-center gap-2">
                     <span className="tabular text-[10px] text-[var(--color-muted)] sm:text-xs">
-                      {formatDuration(pull.durationMs)}
+                      {formatDuration(pull.bossFight.durationMs)}
                     </span>
                     <span
                       className="text-[10px] uppercase tracking-[0.12em] sm:text-xs"

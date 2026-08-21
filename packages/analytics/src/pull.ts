@@ -1,5 +1,6 @@
-import { BARAS_ATTACK_TYPES_BY_ID, BARAS_INTERRUPT_ABILITY_IDS, canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
+import { BARAS_ATTACK_TYPES_BY_ID, BARAS_INTERRUPT_ABILITY_IDS, BARAS_OFF_GCD_ABILITY_IDS, canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveBarasEncounterDefinition, resolveEncounter } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
+import { EncounterRuntime, type RuntimePhaseSegment } from "./encounter-runtime.js";
 import { detectSingleInstanceReset } from "./reset.js";
 import {
   isNpc,
@@ -14,7 +15,10 @@ import {
   type EnemyPlayerMetrics,
   type EncounterRef,
   type InterruptRecord,
-    type AbilityUsageSummary,
+  type AbilityMetricValues,
+  type AbilityPhaseUsageSummary,
+  type AbilityPlayerUsageSummary,
+  type AbilityUsageSummary,
   type LivePullState,
   type LiveBossFightSnapshot,
   type MetricBucket,
@@ -120,6 +124,17 @@ function emptyTotals(actorId: string, name: string): ActorTotals {
     overhealing: 0,
     damageTaken: 0,
     absorbed: 0,
+    actions: 0,
+    onGcdActions: 0,
+    offGcdActions: 0,
+    interrupts: 0,
+    damageHits: 0,
+    healingEvents: 0,
+    healingCriticalHits: 0,
+    incomingAttacks: 0,
+    incomingHits: 0,
+    defenses: 0,
+    shieldedHits: 0,
     criticalHits: 0,
     criticalDamage: 0,
     mitigatedDamage: 0,
@@ -149,8 +164,6 @@ export class PullAccumulator {
   readonly #buckets = new Map<number, MetricBucket>();
   readonly #npcs = new Map<string, { name: string; maxHp: number; hp: number | null }>();
   readonly #enemies = new Map<string, EnemyState>();
-  readonly #phaseStartedAt = new Map<number, number>();
-  readonly #phaseEvidence = new Map<number, TerminalEvidence>();
   #victoryEvidence: TerminalEvidence | null = null;
   readonly #engagedNpcIds = new Set<string>();
   readonly #engagedNpcNames = new Set<string>();
@@ -159,12 +172,16 @@ export class PullAccumulator {
   readonly #deaths: DeathRecord[] = [];
   readonly #interrupts: InterruptRecord[] = [];
   readonly #abilities = new Map<string, AbilityUsageSummary>();
+  readonly #abilityTargets = new Map<string, Set<string>>();
+  readonly #abilityPlayerTargets = new Map<string, Set<string>>();
+  readonly #abilityPhaseTargets = new Map<string, Set<string>>();
+  readonly #abilityCastTiming = new Map<string, { intervals: number; totalMs: number }>();
   readonly #lastHitOnPlayer = new Map<string, KillingBlow>();
   readonly #participants = new Set<string>();
   readonly #bossThreshold: BossThreshold;
-  #currentPhaseOrder = 1;
   #peakPlayerMaxHp = 0;
-  readonly #counters = new Map<string, number>();
+  readonly #runtime: EncounterRuntime;
+  readonly #pendingRuntimeEvents: CombatEvent[] = [];
   #resetDetectedAt: number | null = null;
 
   constructor(
@@ -180,67 +197,69 @@ export class PullAccumulator {
     this.#lastActivityAt = startedAt;
     this.#context = context;
     this.#bossThreshold = bossThreshold;
+    this.#runtime = new EncounterRuntime(startedAt, context.difficulty, context.groupSize);
+    this.#buckets.set(0, {
+      index: 0,
+      startedAt,
+      damage: {},
+      healing: {},
+      damageTaken: {},
+    });
   }
 
   get lastActivityAt(): number {
     return this.#lastActivityAt;
   }
 
+  get #currentPhaseOrder(): number {
+    return this.#runtime.currentPhaseOrder;
+  }
+
   /** Increments a mechanic counter (created at 0 on first use) and returns the new value. */
   incrementCounter(counterId: string): number {
-    const next = (this.#counters.get(counterId) ?? 0) + 1;
-    this.#counters.set(counterId, next);
-    return next;
+    return this.#runtime.incrementCounter(counterId);
   }
 
   /** Decrements a mechanic counter, floored at 0, and returns the new value. */
   decrementCounter(counterId: string): number {
-    const next = Math.max(0, (this.#counters.get(counterId) ?? 0) - 1);
-    this.#counters.set(counterId, next);
-    return next;
+    return this.#runtime.decrementCounter(counterId);
   }
 
   /** Resets a mechanic counter to a specific value (0 by default). */
   resetCounter(counterId: string, value = 0): void {
-    this.#counters.set(counterId, value);
+    this.#runtime.setCounter(counterId, value);
   }
 
   /** Current value of a mechanic counter (0 if never touched). */
   getCounter(counterId: string): number {
-    return this.#counters.get(counterId) ?? 0;
+    return this.#runtime.getCounter(counterId);
   }
 
-  #conditionContext(): ConditionContext {
-    return {
-      getCounter: (counterId: string) => this.getCounter(counterId),
-      currentPhaseOrder: this.#currentPhaseOrder,
-    };
-  }
-
-  /** Increments any encounter-defined counters whose ability/effect trigger matched this event. */
-  #observeCounters(abilityName: string | null, effectName: string | null): void {
+  #observeEncounterRuntime(): void {
     const encounter = this.#encounter();
-    const counters = encounter?.counters;
-    if (counters === undefined || counters.length === 0) return;
-    for (const def of counters) {
-      const abilityMatch = def.incrementOnAbility !== undefined
-        && abilityName !== null
-        && abilityName.toLowerCase().includes(def.incrementOnAbility.toLowerCase());
-      const effectMatch = def.incrementOnEffect !== undefined
-        && effectName !== null
-        && effectName.toLowerCase().includes(def.incrementOnEffect.toLowerCase());
-      if (abilityMatch || effectMatch) this.incrementCounter(def.id);
-    }
+    if (encounter === null) return;
+    const baras = resolveBarasEncounterDefinition(this.#engagedNpcIds);
+    this.#runtime.bind({
+      encounterId: baras?.id ?? encounter.encounterId,
+      phases: baras?.phases.length ? baras.phases : encounter.phases,
+      counters: baras?.counters ?? encounter.counters ?? [],
+      bossNpcIds: encounter.bossNpcIds ?? [],
+      ...(baras === null ? {} : { timers: baras.timers, shields: baras.shields, challenges: baras.challenges }),
+      ...(baras?.victoryTrigger === undefined ? {} : { victoryTrigger: baras.victoryTrigger }),
+      ...(baras === null ? {} : { entityNpcIds: baras.entityNpcIds }),
+    });
+    for (const pending of this.#pendingRuntimeEvents) this.#runtime.process(pending, this.#context.localPlayerId);
+    this.#pendingRuntimeEvents.length = 0;
   }
 
   add(event: CombatEvent): void {
     this.#observeHealth(event);
+    this.#pendingRuntimeEvents.push(event);
+    this.#observeEncounterRuntime();
     this.#observeVictoryEvent(event);
 
     switch (event.type) {
       case "damage":
-        this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
-        this.#observeCounters(event.ability?.name ?? null, null);
         this.#addDamage(
           event.timestamp,
           event.source,
@@ -249,7 +268,6 @@ export class PullAccumulator {
           event.ability,
           event.threat,
         );
-        this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
         this.#lastActivityAt = event.timestamp;
         break;
 
@@ -261,6 +279,9 @@ export class PullAccumulator {
       case "applyEffect":
       case "removeEffect":
       case "ability":
+        if (event.type === "ability" && event.phase === "activate" && event.ability !== null && isPlayer(event.source)) {
+          this.#addAbilityActivation(event.timestamp, event.source, event.ability);
+        }
         if (event.type === "ability" && event.phase === "interrupt" && event.ability !== null && BARAS_INTERRUPT_ABILITY_IDS.has(event.ability.id)) {
           this.#interrupts.push({
             timestamp: event.timestamp,
@@ -271,17 +292,11 @@ export class PullAccumulator {
             targetNpcId: event.target?.kind === "npc" ? event.target.npcId : null,
             targetName: event.target?.kind === "npc" ? canonicalNpcName(event.target.npcId, event.target.name).name : null,
           });
+          if (isPlayer(event.source)) {
+            this.#totalsFor(event.source.playerId, event.source.name).interrupts += 1;
+            this.#phaseTotalsFor(this.#currentPhaseOrder, event.source.playerId, event.source.name, event.timestamp).totals.interrupts += 1;
+          }
         }
-        this.#observePhase(
-          event.timestamp,
-          event.target,
-          event.type === "ability" ? event.ability?.name ?? null : null,
-          event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
-        );
-        this.#observeCounters(
-          event.type === "ability" ? event.ability?.name ?? null : null,
-          event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
-        );
         this.#lastActivityAt = event.timestamp;
         break;
 
@@ -293,6 +308,7 @@ export class PullAccumulator {
       default:
         break;
     }
+    this.#observeEncounterRuntime();
   }
 
   #observeHealth(event: CombatEvent): void {
@@ -361,10 +377,11 @@ export class PullAccumulator {
   }
 
   #phaseTotalsFor(phaseOrder: number, id: string, name: string, timestamp: number): PhaseActorState {
-    let phase = this.#phaseTotals.get(phaseOrder);
+    const segmentIndex = this.#runtime.currentPhaseSegmentIndex;
+    let phase = this.#phaseTotals.get(segmentIndex);
     if (phase === undefined) {
       phase = new Map<string, PhaseActorState>();
-      this.#phaseTotals.set(phaseOrder, phase);
+      this.#phaseTotals.set(segmentIndex, phase);
     }
     let state = phase.get(id);
     if (state === undefined) {
@@ -400,6 +417,7 @@ export class PullAccumulator {
 
   #damageDetails(totals: ActorTotals, value: MagnitudeValue, targetHp: number | null, threat: number | null): void {
     const applied = appliedAmount(value);
+    if (value.amount > 0) totals.damageHits += 1;
     if (value.critical) {
       totals.criticalHits = (totals.criticalHits ?? 0) + 1;
       totals.criticalDamage = (totals.criticalDamage ?? 0) + applied;
@@ -409,6 +427,16 @@ export class PullAccumulator {
     totals.threat = (totals.threat ?? 0) + (threat ?? 0);
     increment(totals.damageByType ??= {}, value.damageType, applied);
     increment(totals.mitigationByType ??= {}, value.mitigation, Math.max(0, value.amount - applied));
+  }
+
+  #incomingDamageDetails(totals: ActorTotals, value: MagnitudeValue): void {
+    totals.incomingAttacks += 1;
+    if (value.amount > 0) totals.incomingHits += 1;
+    if (value.amount === 0 && value.mitigation !== null) totals.defenses += 1;
+    if (value.mitigation === "shield") totals.shieldedHits += 1;
+    totals.mitigatedDamage = (totals.mitigatedDamage ?? 0) + Math.max(0, value.amount - appliedAmount(value));
+    increment(totals.damageByType ??= {}, value.damageType, appliedAmount(value));
+    increment(totals.mitigationByType ??= {}, value.mitigation, Math.max(0, value.amount - appliedAmount(value)));
   }
 
   #enemyDamageDetails(enemy: EnemyState, value: MagnitudeValue, targetHp: number | null, threat: number | null): void {
@@ -425,6 +453,99 @@ export class PullAccumulator {
     increment(enemy.mitigationByType, value.mitigation, Math.max(0, value.amount - applied));
   }
 
+  #abilityUsage(ability: NonNullable<CombatEvent["ability"]>): AbilityUsageSummary {
+    const metadata = BARAS_ATTACK_TYPES_BY_ID.get(ability.id);
+    const usage = this.#abilities.get(ability.id) ?? {
+      abilityId: ability.id,
+      name: metadata?.name ?? ability.name,
+      attackType: metadata?.attackType ?? null,
+      damageType: metadata?.damageType ?? null,
+      casts: 0,
+      hits: 0,
+      misses: 0,
+      criticalHits: 0,
+      targets: 0,
+      damage: 0,
+      players: [],
+      targetBreakdown: [],
+      phases: [],
+    };
+    this.#abilities.set(ability.id, usage);
+    return usage;
+  }
+
+  #emptyAbilityMetrics(): AbilityMetricValues {
+    return { casts: 0, hits: 0, misses: 0, criticalHits: 0, targets: 0, damage: 0 };
+  }
+
+  #abilityPlayer(usage: AbilityUsageSummary, source: Extract<NonNullable<CombatEvent["source"]>, { kind: "player" }>): AbilityPlayerUsageSummary {
+    let player = usage.players.find((entry) => entry.playerId === source.playerId);
+    if (player === undefined) {
+      player = {
+        playerId: source.playerId,
+        name: source.name,
+        ...this.#emptyAbilityMetrics(),
+        firstCastAt: null,
+        lastCastAt: null,
+        averageTimeBetweenMs: 0,
+        minimumTimeBetweenMs: 0,
+        maximumTimeBetweenMs: 0,
+      };
+      usage.players.push(player);
+    }
+    return player;
+  }
+
+  #abilityPhase(usage: AbilityUsageSummary): AbilityPhaseUsageSummary {
+    const segmentIndex = this.#runtime.currentPhaseSegmentIndex;
+    let phase = usage.phases.find((entry) => entry.segmentIndex === segmentIndex);
+    if (phase === undefined) {
+      phase = {
+        phaseOrder: this.#currentPhaseOrder,
+        phaseId: this.#runtime.currentPhaseId,
+        segmentIndex,
+        ...this.#emptyAbilityMetrics(),
+      };
+      usage.phases.push(phase);
+    }
+    return phase;
+  }
+
+  #addAbilityActivation(
+    timestamp: number,
+    source: Extract<NonNullable<CombatEvent["source"]>, { kind: "player" }>,
+    ability: NonNullable<CombatEvent["ability"]>,
+  ): void {
+    const usage = this.#abilityUsage(ability);
+    const player = this.#abilityPlayer(usage, source);
+    const phase = this.#abilityPhase(usage);
+    const totals = this.#totalsFor(source.playerId, source.name);
+    const phaseTotals = this.#phaseTotalsFor(this.#currentPhaseOrder, source.playerId, source.name, timestamp).totals;
+    const offGcd = BARAS_OFF_GCD_ABILITY_IDS.has(ability.id);
+    for (const actorTotals of [totals, phaseTotals]) {
+      actorTotals.actions += 1;
+      if (offGcd) actorTotals.offGcdActions += 1;
+      else actorTotals.onGcdActions += 1;
+    }
+    this.#participants.add(source.playerId);
+    usage.casts += 1;
+    player.casts += 1;
+    phase.casts += 1;
+    player.firstCastAt ??= timestamp;
+    if (player.lastCastAt !== null) {
+      const interval = Math.max(0, timestamp - player.lastCastAt);
+      const key = `${ability.id}:${source.playerId}`;
+      const timing = this.#abilityCastTiming.get(key) ?? { intervals: 0, totalMs: 0 };
+      timing.intervals += 1;
+      timing.totalMs += interval;
+      this.#abilityCastTiming.set(key, timing);
+      player.averageTimeBetweenMs = timing.totalMs / timing.intervals;
+      player.minimumTimeBetweenMs = player.minimumTimeBetweenMs === 0 ? interval : Math.min(player.minimumTimeBetweenMs, interval);
+      player.maximumTimeBetweenMs = Math.max(player.maximumTimeBetweenMs, interval);
+    }
+    player.lastCastAt = timestamp;
+  }
+
   #addDamage(
     timestamp: number,
     source: CombatEvent["source"],
@@ -435,19 +556,56 @@ export class PullAccumulator {
   ): void {
     const applied = appliedAmount(value);
     const bucket = this.#bucketFor(timestamp);
-    if (ability !== null) {
-      const metadata = BARAS_ATTACK_TYPES_BY_ID.get(ability.id);
-      const usage = this.#abilities.get(ability.id) ?? {
-        abilityId: ability.id,
-        name: metadata?.name ?? ability.name,
-        attackType: metadata?.attackType ?? null,
-        damageType: metadata?.damageType ?? null,
-        casts: 0,
-        damage: 0,
-      };
-      usage.casts += 1;
-      usage.damage += applied;
-      this.#abilities.set(ability.id, usage);
+    if (ability !== null && isPlayer(source)) {
+      const usage = this.#abilityUsage(ability);
+      const player = this.#abilityPlayer(usage, source);
+      const phase = this.#abilityPhase(usage);
+      const landed = value.amount > 0;
+      for (const metrics of [usage, player, phase]) {
+        if (landed) {
+          metrics.hits += 1;
+          if (value.critical) metrics.criticalHits += 1;
+          metrics.damage += applied;
+        } else {
+          metrics.misses += 1;
+        }
+      }
+      if (target !== null) {
+        const targetId = target.kind === "player" ? `player:${target.playerId}` : `npc:${target.instanceId ?? target.npcId}`;
+        const targets = this.#abilityTargets.get(ability.id) ?? new Set<string>();
+        targets.add(targetId);
+        this.#abilityTargets.set(ability.id, targets);
+        usage.targets = targets.size;
+        const playerKey = `${ability.id}:${source.playerId}`;
+        const playerTargets = this.#abilityPlayerTargets.get(playerKey) ?? new Set<string>();
+        playerTargets.add(targetId);
+        this.#abilityPlayerTargets.set(playerKey, playerTargets);
+        player.targets = playerTargets.size;
+        const phaseKey = `${ability.id}:${phase.segmentIndex}`;
+        const phaseTargets = this.#abilityPhaseTargets.get(phaseKey) ?? new Set<string>();
+        phaseTargets.add(targetId);
+        this.#abilityPhaseTargets.set(phaseKey, phaseTargets);
+        phase.targets = phaseTargets.size;
+
+        let targetUsage = usage.targetBreakdown.find((entry) => entry.targetId === targetId);
+        if (targetUsage === undefined) {
+          targetUsage = {
+            targetId,
+            targetNpcId: target.kind === "npc" ? target.npcId : null,
+            name: target.name,
+            ...this.#emptyAbilityMetrics(),
+            targets: 1,
+          };
+          usage.targetBreakdown.push(targetUsage);
+        }
+        if (landed) {
+          targetUsage.hits += 1;
+          if (value.critical) targetUsage.criticalHits += 1;
+          targetUsage.damage += applied;
+        } else {
+          targetUsage.misses += 1;
+        }
+      }
     }
     if (isPlayer(source) && isNpc(target)) {
       this.#engagedNpcIds.add(target.npcId);
@@ -467,13 +625,14 @@ export class PullAccumulator {
       const enemyPlayer = this.#enemyPlayerFor(enemy, source, timestamp);
       enemyPlayer.totals.damage += applied;
       this.#damageDetails(enemyPlayer.totals, value, target.hp, threat);
-      let enemyPhaseState = enemyPlayer.phaseTotals.get(this.#currentPhaseOrder);
+      const phaseSegmentIndex = this.#runtime.currentPhaseSegmentIndex;
+      let enemyPhaseState = enemyPlayer.phaseTotals.get(phaseSegmentIndex);
       if (enemyPhaseState === undefined) {
         enemyPhaseState = { totals: emptyTotals(source.playerId, source.name), firstActionAt: timestamp, lastActionAt: timestamp };
         enemyPhaseState.totals.role = enemyPlayer.totals.role;
         enemyPhaseState.totals.discipline = enemyPlayer.totals.discipline;
         enemyPhaseState.totals.combatStyle = enemyPlayer.totals.combatStyle ?? null;
-        enemyPlayer.phaseTotals.set(this.#currentPhaseOrder, enemyPhaseState);
+        enemyPlayer.phaseTotals.set(phaseSegmentIndex, enemyPhaseState);
       } else {
         enemyPhaseState.lastActionAt = timestamp;
       }
@@ -492,11 +651,11 @@ export class PullAccumulator {
       const totals = this.#totalsFor(target.playerId, target.name);
       totals.damageTaken += applied;
       totals.absorbed += value.absorbed ?? 0;
-      this.#damageDetails(totals, value, target.hp, threat);
+      this.#incomingDamageDetails(totals, value);
       const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, target.playerId, target.name, timestamp);
       phaseState.totals.damageTaken += applied;
       phaseState.totals.absorbed += value.absorbed ?? 0;
-      this.#damageDetails(phaseState.totals, value, target.hp, threat);
+      this.#incomingDamageDetails(phaseState.totals, value);
       bucket.damageTaken[target.playerId] = (bucket.damageTaken[target.playerId] ?? 0) + applied;
       this.#lastHitOnPlayer.set(target.playerId, {
         ability: ability?.name ?? null,
@@ -513,9 +672,13 @@ export class PullAccumulator {
     const totals = this.#totalsFor(source.playerId, source.name);
     totals.healing += applied;
     totals.overhealing += overheal;
+    totals.healingEvents += 1;
+    if (value.critical) totals.healingCriticalHits += 1;
     const phaseState = this.#phaseTotalsFor(this.#currentPhaseOrder, source.playerId, source.name, timestamp);
     phaseState.totals.healing += applied;
     phaseState.totals.overhealing += overheal;
+    phaseState.totals.healingEvents += 1;
+    if (value.critical) phaseState.totals.healingCriticalHits += 1;
     this.#participants.add(source.playerId);
 
     const bucket = this.#bucketFor(timestamp);
@@ -565,7 +728,10 @@ export class PullAccumulator {
           { npcId: actor.npcId, instanceId, name: identity.name },
           singleInstanceBossNames,
         );
-        if (isReset) this.#resetDetectedAt = timestamp;
+        if (isReset) {
+          this.#resetDetectedAt = timestamp;
+          this.#runtime.setTerminal("reset", timestamp, "A single-instance boss respawned.");
+        }
       }
       enemy = {
         instanceId,
@@ -652,6 +818,17 @@ export class PullAccumulator {
       npcIds: this.#engagedNpcIds,
     });
     if (match === null) return null;
+    const baras = resolveBarasEncounterDefinition(this.#engagedNpcIds);
+    const reportPhases = (baras?.phases.length ? baras.phases : match.encounter.phases).map((phase) => ({
+      order: phase.order,
+      name: phase.name,
+      style: phase.style,
+      trigger: phase.trigger,
+    }));
+    const reportCounters = (baras?.counters ?? match.encounter.counters ?? []).map((counter) => ({
+      id: counter.id,
+      name: counter.name,
+    }));
 
     return {
       encounterId: match.encounter.id,
@@ -662,13 +839,18 @@ export class PullAccumulator {
       order: match.encounter.order,
       matchedBosses: match.matchedBosses,
       adds: match.encounter.adds,
-      phases: match.encounter.phases,
+      phases: reportPhases,
       victoryEvent: match.encounter.victoryEvent,
-      cleared: isEncounterCleared(match.encounter, this.#deadNpcNames, this.#victoryEvidence !== null, this.#deadNpcIds),
+      cleared: isEncounterCleared(
+        match.encounter,
+        this.#deadNpcNames,
+        this.#victoryEvidence !== null || this.#runtime.terminal?.outcome === "victory",
+        this.#deadNpcIds,
+      ),
       bossNpcIds: match.encounter.bossNpcIds ?? [],
       addNpcIds: match.encounter.addNpcIds ?? [],
       singleInstanceBossNames: match.encounter.singleInstanceBossNames ?? [],
-      counters: match.encounter.counters ?? [],
+      counters: reportCounters,
       catalogSource: NPC_CATALOG_SOURCE,
       catalogVersion: NPC_CATALOG_VERSION,
     };
@@ -699,38 +881,7 @@ export class PullAccumulator {
       actorIds: event.source?.kind === "player" ? [event.source.playerId] : [],
       npcIds: event.target?.kind === "npc" ? [event.target.npcId] : [],
     };
-  }
-
-  #observePhase(
-    timestamp: number,
-    target: CombatEvent["target"],
-    abilityName: string | null,
-    effectName: string | null,
-  ): void {
-    const encounter = this.#encounter();
-    if (encounter === null || encounter.phases.length === 0) return;
-    const targetHpPercent = isNpc(target) && target.hp !== null && target.maxHp && target.maxHp > 0
-      ? (target.hp / target.maxHp) * 100
-      : null;
-    const order = resolveEncounterPhase(encounter, {
-      bossHpPercent: targetHpPercent,
-      abilityName,
-      effectName,
-      deadNpcNames: this.#deadNpcNames,
-      conditionContext: this.#conditionContext(),
-    });
-    if (!this.#phaseStartedAt.has(1)) this.#phaseStartedAt.set(1, this.startedAt);
-    const previous = Math.max(...this.#phaseStartedAt.keys());
-    if (order <= previous) return;
-    this.#phaseStartedAt.set(order, timestamp);
-    this.#currentPhaseOrder = order;
-    this.#phaseEvidence.set(order, {
-      kind: "phase-transition",
-      timestamp,
-      detail: `Phase ${order} observed from ${abilityName ?? effectName ?? "encounter state"}.`,
-      actorIds: [],
-      npcIds: isNpc(target) ? [target.npcId] : [],
-    });
+    this.#runtime.setTerminal("victory", event.timestamp, this.#victoryEvidence.detail);
   }
 
   #rates(durationMs: number): ActorRates[] {
@@ -763,17 +914,23 @@ export class PullAccumulator {
             totals.healing + totals.overhealing === 0
               ? 0
               : (totals.overhealing / (totals.healing + totals.overhealing)) * 100,
+          apm: (totals.actions / seconds) * 60,
+          damageCritPercent: totals.damageHits === 0 ? 0 : ((totals.criticalHits ?? 0) / totals.damageHits) * 100,
+          healingCritPercent: totals.healingEvents === 0 ? 0 : (totals.healingCriticalHits / totals.healingEvents) * 100,
+          defensePercent: totals.incomingAttacks === 0 ? 0 : (totals.defenses / totals.incomingAttacks) * 100,
+          shieldPercent: totals.incomingHits === 0 ? 0 : (totals.shieldedHits / totals.incomingHits) * 100,
         };
       })
       .sort((a, b) => b.damage - a.damage);
   }
 
-  #phaseRates(phaseOrder: number, durationMs: number): PlayerPhaseMetrics[] {
-    const states = this.#phaseTotals.get(phaseOrder);
+  #phaseRates(phaseSegmentIndex: number, phaseOrder: number, durationMs: number): PlayerPhaseMetrics[] {
+    const states = this.#phaseTotals.get(phaseSegmentIndex);
     if (states === undefined) return [];
     return [...states.values()].map((state) => ({
       ...this.#rateValues([state.totals], durationMs)[0]!,
       phaseOrder,
+      phaseSegmentIndex,
       activeMs: Math.max(0, state.lastActionAt - state.firstActionAt),
       firstActionAt: state.firstActionAt,
       lastActionAt: state.lastActionAt,
@@ -831,9 +988,9 @@ export class PullAccumulator {
     return this.#encounter()?.cleared === true;
   }
 
-  #enemyPlayerMetrics(enemy: EnemyState, phaseOrder?: number): EnemyPlayerMetrics[] {
+  #enemyPlayerMetrics(enemy: EnemyState, phaseSegmentIndex?: number): EnemyPlayerMetrics[] {
     return [...enemy.players.values()].flatMap((player) => {
-      const phase = phaseOrder === undefined ? null : player.phaseTotals.get(phaseOrder);
+      const phase = phaseSegmentIndex === undefined ? null : player.phaseTotals.get(phaseSegmentIndex);
       const totals = phase?.totals ?? player.totals;
       const first = phase?.firstActionAt ?? player.firstDamageAt;
       const last = phase?.lastActionAt ?? player.lastDamageAt;
@@ -842,7 +999,7 @@ export class PullAccumulator {
     });
   }
 
-  #enemyTimeline(encounter: EncounterRef, phaseOrder?: number): { bosses: EnemyTimeline[]; mechanics: EnemyTimeline[]; unknown: EnemyTimeline[] } {
+  #enemyTimeline(encounter: EncounterRef, phaseSegmentIndex?: number): { bosses: EnemyTimeline[]; mechanics: EnemyTimeline[]; unknown: EnemyTimeline[] } {
     const all = [...this.#enemies.values()].map((enemy) => ({
       ...enemy,
       role: classifyEncounterEntity({
@@ -859,7 +1016,7 @@ export class PullAccumulator {
         wipeMechanics: [],
         victoryEvent: encounter.victoryEvent,
       }, enemy.name, enemy.npcId),
-      players: this.#enemyPlayerMetrics(enemy, phaseOrder),
+      players: this.#enemyPlayerMetrics(enemy, phaseSegmentIndex),
     }));
     return {
       bosses: all.filter((enemy) => enemy.role === "boss"),
@@ -882,36 +1039,44 @@ export class PullAccumulator {
     }));
   }
 
+  #phaseEvidence(segment: RuntimePhaseSegment): TerminalEvidence | null {
+    if (segment.triggerKind === "initial") return null;
+    return {
+      kind: "phase-transition",
+      timestamp: segment.startedAt,
+      detail: segment.detail,
+      actorIds: [],
+      npcIds: [],
+    };
+  }
+
   #bossFight(encounter: EncounterRef | null, endedAt: number, outcome: PullOutcome, endReason: PullEndReason): BossFightSummary | null {
     if (encounter === null) return null;
     const durationMs = Math.max(0, endedAt - this.startedAt);
     const timelines = this.#enemyTimeline(encounter);
     const terminalEvidence = this.#terminalEvidence(encounter, outcome, endedAt, endReason);
-    const observedPhases = encounter.phases.filter((phase) => this.#phaseStartedAt.has(phase.order));
-    const phases: BossPhaseSummary[] = observedPhases.map((phase, index) => {
-      const startedAt = this.#phaseStartedAt.get(phase.order)!;
-      const nextPhase = observedPhases[index + 1];
-      const endedPhaseAt = nextPhase
-        ? this.#phaseStartedAt.get(nextPhase.order)!
-        : endedAt;
-      const phaseTimelines = this.#enemyTimeline(encounter, phase.order);
+    const phases: BossPhaseSummary[] = this.#runtime.phaseSegments.flatMap((segment, segmentIndex) => {
+      const phase = encounter.phases.find((candidate) => candidate.order === segment.phaseOrder);
+      if (phase === undefined) return [];
+      const endedPhaseAt = segment.endedAt ?? endedAt;
+      const phaseTimelines = this.#enemyTimeline(encounter, segmentIndex);
       const enemies = [...phaseTimelines.bosses, ...phaseTimelines.mechanics, ...phaseTimelines.unknown].map((enemy) => ({
         ...enemy,
-        phases: enemy.phases.length > 0 ? enemy.phases : [phase.order],
+        phases: enemy.phases.length > 0 ? enemy.phases : [segment.phaseOrder],
       }));
-      const players = this.#phaseRates(phase.order, Math.max(endedPhaseAt - startedAt, 1));
-      return {
+      const players = this.#phaseRates(segmentIndex, segment.phaseOrder, Math.max(endedPhaseAt - segment.startedAt, 1));
+      return [{
         order: phase.order,
         name: phase.name,
         style: phase.style,
         trigger: phase.trigger,
-        startedAt,
+        startedAt: segment.startedAt,
         endedAt: endedPhaseAt,
-        triggerEvidence: this.#phaseEvidence.get(phase.order) ??
-          (index === observedPhases.length - 1 ? terminalEvidence : null),
+        triggerEvidence: this.#phaseEvidence(segment) ??
+          (segment === this.#runtime.phaseSegments.at(-1) ? terminalEvidence : null),
         enemies,
         players,
-      };
+      }];
     });
     return {
       id: this.id,
@@ -932,9 +1097,11 @@ export class PullAccumulator {
       outcome,
       terminalEvidence,
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
-      counters: Object.fromEntries(this.#counters),
+      counters: Object.fromEntries(this.#runtime.counters),
       interrupts: [...this.#interrupts],
       abilities: [...this.#abilities.values()].sort((left, right) => right.damage - left.damage),
+      challenges: this.#runtime.challengeSnapshot(endedAt),
+      mechanics: this.#runtime.mechanicsSnapshot(),
       catalogSource: NPC_CATALOG_SOURCE,
       catalogVersion: NPC_CATALOG_VERSION,
     };
@@ -943,6 +1110,15 @@ export class PullAccumulator {
   #terminalEvidence(encounter: EncounterRef, outcome: PullOutcome, timestamp: number, endReason: PullEndReason) {
     if (outcome === "kill") {
       if (this.#victoryEvidence !== null) return this.#victoryEvidence;
+      if (this.#runtime.terminal?.outcome === "victory") {
+        return {
+          kind: "victory-event" as const,
+          timestamp: this.#runtime.terminal.timestamp,
+          detail: this.#runtime.terminal.detail,
+          actorIds: [],
+          npcIds: [],
+        };
+      }
       return {
         kind: encounter.cleared ? "required-targets-dead" as const : "boss-death" as const,
         timestamp,
@@ -1021,17 +1197,21 @@ export class PullAccumulator {
       bossEntities: this.#enemyTimeline(encounter).bosses,
       mechanicEntities: this.#enemyTimeline(encounter).mechanics,
       unknownEntities: this.#enemyTimeline(encounter).unknown,
-      phases: encounter.phases.filter((phase) => this.#phaseStartedAt.has(phase.order)).map((phase, index, observed) => ({
-        order: phase.order,
-        name: phase.name,
-        style: phase.style,
-        trigger: phase.trigger,
-        startedAt: this.#phaseStartedAt.get(phase.order)!,
-        endedAt: observed[index + 1] ? this.#phaseStartedAt.get(observed[index + 1]!.order)! : null,
-        triggerEvidence: this.#phaseEvidence.get(phase.order) ?? null,
-        enemies: [...this.#enemyTimeline(encounter).bosses, ...this.#enemyTimeline(encounter).mechanics, ...this.#enemyTimeline(encounter).unknown],
-        players: this.#phaseRates(phase.order, Math.max(elapsedMs, 1)),
-      })),
+      phases: this.#runtime.phaseSegments.flatMap((segment, segmentIndex) => {
+        const phase = encounter.phases.find((candidate) => candidate.order === segment.phaseOrder);
+        if (phase === undefined) return [];
+        return [{
+          order: phase.order,
+          name: phase.name,
+          style: phase.style,
+          trigger: phase.trigger,
+          startedAt: segment.startedAt,
+          endedAt: segment.endedAt,
+          triggerEvidence: this.#phaseEvidence(segment),
+          enemies: [...this.#enemyTimeline(encounter).bosses, ...this.#enemyTimeline(encounter).mechanics, ...this.#enemyTimeline(encounter).unknown],
+          players: this.#phaseRates(segmentIndex, phase.order, Math.max((segment.endedAt ?? now) - segment.startedAt, 1)),
+        }];
+      }),
       players: this.#rates(elapsedMs),
     };
     return {

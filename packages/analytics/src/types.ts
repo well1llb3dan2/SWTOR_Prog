@@ -72,6 +72,17 @@ export interface ActorTotals {
   overhealing: number;
   damageTaken: number;
   absorbed: number;
+  actions: number;
+  onGcdActions: number;
+  offGcdActions: number;
+  interrupts: number;
+  damageHits: number;
+  healingEvents: number;
+  healingCriticalHits: number;
+  incomingAttacks: number;
+  incomingHits: number;
+  defenses: number;
+  shieldedHits: number;
   criticalHits?: number;
   criticalDamage?: number;
   mitigatedDamage?: number;
@@ -87,6 +98,11 @@ export interface ActorRates extends ActorTotals {
   hps: number;
   dtps: number;
   overhealPercent: number;
+  apm: number;
+  damageCritPercent: number;
+  healingCritPercent: number;
+  defensePercent: number;
+  shieldPercent: number;
 }
 
 /** Fixed-width time series slice; mirrors the storage bucket used downstream. */
@@ -132,13 +148,91 @@ export interface InterruptRecord {
   targetName: string | null;
 }
 
-export interface AbilityUsageSummary {
+export interface AbilityMetricValues {
+  casts: number;
+  hits: number;
+  misses: number;
+  criticalHits: number;
+  targets: number;
+  damage: number;
+}
+
+export interface AbilityPlayerUsageSummary extends AbilityMetricValues {
+  playerId: string;
+  name: string;
+  firstCastAt: number | null;
+  lastCastAt: number | null;
+  averageTimeBetweenMs: number;
+  minimumTimeBetweenMs: number;
+  maximumTimeBetweenMs: number;
+}
+
+export interface AbilityTargetUsageSummary extends AbilityMetricValues {
+  targetId: string;
+  targetNpcId: string | null;
+  name: string;
+}
+
+export interface AbilityPhaseUsageSummary extends AbilityMetricValues {
+  phaseOrder: number;
+  phaseId: string | null;
+  segmentIndex: number;
+}
+
+export interface AbilityUsageSummary extends AbilityMetricValues {
   abilityId: string;
   name: string;
   attackType: string | null;
   damageType: string | null;
-  casts: number;
-  damage: number;
+  players: AbilityPlayerUsageSummary[];
+  targetBreakdown: AbilityTargetUsageSummary[];
+  phases: AbilityPhaseUsageSummary[];
+}
+
+export interface ChallengePlayerSummary {
+  playerId: string;
+  name: string;
+  value: number;
+  percent: number;
+  perSecond: number | null;
+}
+
+export interface ChallengeSummary {
+  id: string;
+  name: string;
+  metric: string;
+  value: number;
+  eventCount: number;
+  durationMs: number;
+  perSecond: number | null;
+  players: ChallengePlayerSummary[];
+}
+
+export interface EncounterMechanicsSummary {
+  timerEvents: Array<{
+    timerId: string;
+    name: string;
+    event: "started" | "expired" | "canceled";
+    timestamp: number;
+    expiresAt: number | null;
+  }>;
+  effectWindows: Array<{
+    effectId: string;
+    effectName: string;
+    sourceId: string | null;
+    targetId: string;
+    appliedAt: number;
+    removedAt: number | null;
+    charges: number | null;
+  }>;
+  shieldWindows: Array<{
+    id: string;
+    targetId: string;
+    initial: number;
+    remaining: number;
+    startedAt: number;
+    endedAt: number | null;
+  }>;
 }
 
 export type EnemyRole = "boss" | "mechanic" | "unknown";
@@ -182,6 +276,7 @@ export interface EnemyPlayerMetrics extends ActorRates {
 
 export interface PlayerPhaseMetrics extends ActorRates {
   phaseOrder: number;
+  phaseSegmentIndex: number;
   activeMs: number;
   firstActionAt: number | null;
   lastActionAt: number | null;
@@ -222,7 +317,9 @@ export interface BossFightSummary {
   /** Final mechanic counter values tracked for this encounter (empty when none defined). */
   counters: Record<string, number>;
   interrupts: InterruptRecord[];
-    abilities: AbilityUsageSummary[];
+  abilities: AbilityUsageSummary[];
+  challenges: ChallengeSummary[];
+  mechanics: EncounterMechanicsSummary;
   catalogSource?: string;
   catalogVersion?: string;
 }

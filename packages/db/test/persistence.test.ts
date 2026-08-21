@@ -108,6 +108,10 @@ describe("summariseProgression", () => {
     terminalEvidence: null,
     buckets: [],
     counters: {},
+    interrupts: [],
+    abilities: [],
+    challenges: [],
+    mechanics: { timerEvents: [], effectWindows: [], shieldWindows: [] },
   });
 
   it("counts attempts and kills per encounter", () => {
@@ -157,6 +161,10 @@ describe("toBossFightDocument", () => {
         terminalEvidence: null,
         buckets: [{ index: 0, startedAt: 1_000, damage: {}, healing: {}, damageTaken: {} }],
         counters: {},
+        interrupts: [],
+        abilities: [],
+        challenges: [],
+        mechanics: { timerEvents: [], effectWindows: [], shieldWindows: [] },
       },
       7,
     );
