@@ -20,6 +20,8 @@ export interface EncounterRef {
   cleared: boolean;
   /** Verified boss NPC class ids, when the catalog has them; preferred over name matching. */
   bossNpcIds?: string[];
+  /** Verified mechanic/add NPC class ids, when the catalog has them; preferred over name matching. */
+  addNpcIds?: string[];
   /** Lowercased boss names eligible for single-instance reset detection. */
   singleInstanceBossNames?: string[];
   /** Mechanic counters tracked for this encounter. */

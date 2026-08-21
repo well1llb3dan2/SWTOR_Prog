@@ -45,6 +45,36 @@ describe("registry integrity", () => {
     }
   });
 
+  it("classifies bossNpcIds and addNpcIds correctly via classifyEncounterEntity", () => {
+    for (const encounter of ENCOUNTERS) {
+      for (const npcId of encounter.bossNpcIds ?? []) {
+        expect(classifyEncounterEntity(encounter, "some unrelated name", npcId), `${encounter.id} boss id ${npcId}`).toBe(
+          "boss",
+        );
+      }
+      for (const npcId of encounter.addNpcIds ?? []) {
+        expect(classifyEncounterEntity(encounter, "some unrelated name", npcId), `${encounter.id} add id ${npcId}`).toBe(
+          "mechanic",
+        );
+      }
+    }
+  });
+
+  it("classifies sample BARAS-verified boss ids via classifyCatalogEntity", () => {
+    expect(classifyCatalogEntity("gharj", "2034534598049792")).toBe("boss");
+    expect(classifyCatalogEntity("karagga the unyielding", "2761200114860032")).toBe("boss");
+    expect(classifyCatalogEntity("dread master brontes", "3273937605623808")).toBe("boss");
+    expect(classifyCatalogEntity("coratanni", "3619433364848640")).toBe("boss");
+    expect(classifyCatalogEntity("revan", "3431605855059968")).toBe("boss");
+  });
+
+  it("marks Coratanni, Ruugar, and Pearl as single-instance bosses for reset detection", () => {
+    const coratanni = ENCOUNTERS_BY_ID.get("rav_coratanni");
+    expect(coratanni?.singleInstanceBossNames).toEqual(
+      expect.arrayContaining(["coratanni", "ruugar", "pearl"]),
+    );
+  });
+
   it("orders phases from one upward", () => {
     for (const encounter of ENCOUNTERS) {
       expect(encounter.phases.length, encounter.id).toBeGreaterThan(0);

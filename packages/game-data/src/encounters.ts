@@ -26,6 +26,7 @@ const EV = operation("ev", [
     id: "ev_annihilation_droid_xrr3",
     name: "Annihilation Droid XRR-3",
     bossNames: ["annihilation droid xrr-3", "annihilator 6520"],
+    bossNpcIds: ["2017165750304768", "1779997656219648", "2034611907461120", "2034573252755456"],
     adds: ["Defense Turret", "Assault Probe"],
     phases: [
       p(1, "Artillery Engagement", "Single-Target Ground", "Encounter start"),
@@ -43,6 +44,7 @@ const EV = operation("ev", [
     id: "ev_gharj",
     name: "Gharj",
     bossNames: ["gharj"],
+    bossNpcIds: ["2034534598049792", "1783772932472832", "2034526008115200", "3725089560330240", "2016946706972672"],
     adds: ["Cave Prowler"],
     phases: [
       p(1, "Platform Engagement", "Static Tank & Spank", "Boss engaged on the current island"),
@@ -87,6 +89,7 @@ const EV = operation("ev", [
       "sith assassin",
       "sith juggernaut",
     ],
+    bossNpcIds: ["2290145281703936", "2098327747297280", "2289690015170560", "2289887583666176"],
     adds: ["Sith Marauder / Lord", "Sith Assassin / Juggernaut"],
     phases: [p(1, "1v1 Duels", "Isolated Combat", "Pulling any Council member locks each player")],
     wipeMechanics: [
@@ -101,6 +104,7 @@ const EV = operation("ev", [
     id: "ev_soa",
     name: "Soa",
     bossNames: ["soa"],
+    bossNpcIds: ["2017170045272064", "1783790112342016", "2289823159156736", "2290085152161792"],
     adds: ["Mind Trap", "Ball Lightning"],
     phases: [
       p(1, "Platform Level 1", "Shielded", "Encounter start to 75%"),
@@ -122,6 +126,7 @@ const KP = operation("kp", [
     id: "kp_bonethrasher",
     name: "Bonethrasher",
     bossNames: ["bonethrasher"],
+    bossNpcIds: ["2624491305828352", "2271801476382720", "2624508485697536", "2624474125959168"],
     adds: ["Gamorrean Guard", "Karagga's Nexu"],
     phases: [p(1, "Untauntable Rampage", "Aggro-Free Cleave", "Encounter start")],
     wipeMechanics: [
@@ -133,6 +138,10 @@ const KP = operation("kp", [
     id: "kp_jarg_and_sorno",
     name: "Jarg & Sorno",
     bossNames: ["jarg", "sorno"],
+    bossNpcIds: [
+      "2760500035190784", "2739437515571200", "2760517215059968", "2760482855321600",
+      "2760504330158080", "2739441810538496", "2760521510027264", "2760487150288896",
+    ],
     victoryRequires: ["jarg", "sorno"],
     adds: ["Scann-Drone", "Mercenary Interceptor"],
     phases: [
@@ -151,6 +160,7 @@ const KP = operation("kp", [
     id: "kp_foreman_crusher",
     name: "Foreman Crusher",
     bossNames: ["foreman crusher"],
+    bossNpcIds: ["2739888487137280", "2739875602235392", "2760693308719104", "2760637474144256"],
     adds: ["Gamorrean Slicer", "Heavy Gamorrean Bruiser"],
     phases: [
       p(1, "Frenzy Phase", "Tank & Spank", "Encounter start"),
@@ -168,6 +178,7 @@ const KP = operation("kp", [
     id: "kp_g4b3_heavy_fabricator",
     name: "G4-B3 Heavy Fabricator",
     bossNames: ["g4-b3 heavy fabricator", "g4-b3"],
+    bossNpcIds: ["2760371186171904", "2747344550363136", "2760375481139200", "2748401112317952"],
     adds: ["Heavy Security Droid", "Stun Droid"],
     phases: [
       p(1, "Armor Stacking Protocol", "Hazard Puzzle", "Boss stacks armour; drag under lava dumps"),
@@ -184,6 +195,7 @@ const KP = operation("kp", [
     id: "kp_karagga_the_unyielding",
     name: "Karagga the Unyielding",
     bossNames: ["karagga the unyielding", "karagga"],
+    bossNpcIds: ["2761200114860032", "2740043105959936", "2761208704794624", "2761191524925440"],
     adds: ["Cybernetic Drills", "Palace Guard"],
     phases: [p(1, "Walker Artillery Protocol", "Kiting", "Encounter start")],
     wipeMechanics: [
@@ -201,6 +213,10 @@ const EC = operation("ec", [
     id: "ec_zorn_and_toth",
     name: "Zorn & Toth",
     bossNames: ["zorn", "toth"],
+    bossNpcIds: [
+      "2788331423268864", "2860770341683200", "2857549116211200", "2861388816973824", "3725115330134016", "2857544821243904",
+      "2788335718236160", "2453173650325504", "2860766046715904", "2861384522006528", "285754911621120",
+    ],
     victoryRequires: ["zorn", "toth"],
     adds: ["Baradium Rock Formation"],
     phases: [
@@ -224,6 +240,10 @@ const EC = operation("ec", [
     id: "ec_firebrand_and_stormcaller",
     name: "Firebrand & Stormcaller",
     bossNames: ["firebrand battle tank", "stormcaller blast tank", "firebrand", "stormcaller"],
+    bossNpcIds: [
+      "2876434087411712", "2876459857215488", "2876481332051968", "2808827007205376",
+      "2876438382379008", "2876464152182784", "2876485627019264", "2808831302172672",
+    ],
     victoryRequires: ["firebrand battle tank", "stormcaller blast tank"],
     adds: ["Combat Droid (Shield Generator)", "Baradium Missile Gunner"],
     phases: [
@@ -247,6 +267,8 @@ const EC = operation("ec", [
     id: "ec_colonel_vorgath",
     name: "Colonel Vorgath",
     bossNames: ["colonel vorgath"],
+    bossNpcIds: ["2854224811524096", "2854117437341696", "2854229106491392", "2786080860405760", "2848692893646848"],
+    addNpcIds: ["2854160387014656", "2854156092047360", "2783478110224384", "2854151797080064"],
     adds: ["Demolitions Probe Droid", "Imperial Defoliator"],
     phases: [
       p(1, "Minefield Puzzle Grid", "Grid Clearing", "Encounter start"),
@@ -264,6 +286,12 @@ const EC = operation("ec", [
     id: "ec_warlord_kephess",
     name: "Warlord Kephess",
     bossNames: ["warlord kephess"],
+    bossNpcIds: ["2876550051528704", "3618127694790656", "2876528576692224", "2876588706234368", "2800357331697664", "2749629472964608"],
+    addNpcIds: [
+      "2876524281724928", "2876558641463296", "2792969987948544", "2876584411267072",
+      "2876562936430592", "2794185463693312", "2876532871659520", "2876593001201664",
+      "2876511396823040", "2876541461594112", "2876571526365184", "2809252208967680",
+    ],
     adds: ["Baradium Bomber", "Warstrider Battlewalker", "Trandoshan Warrior"],
     phases: [
       p(1, "Shield Line & Bombers", "Add Wave", "Encounter start"),
@@ -286,6 +314,7 @@ const TFB = operation("tfb", [
     id: "tfb_writhing_horror",
     name: "The Writhing Horror",
     bossNames: ["the writhing horror", "writhing horror", "the withering horror"],
+    bossNpcIds: ["3010428477112320", "3010432772079616", "2938874321960960", "3010424182145024"],
     adds: ["Corrosive Slime", "Lurker Drone"],
     phases: [
       p(1, "Ground Combat & Spore Field", "Positioning", "Encounter start"),
@@ -304,6 +333,11 @@ const TFB = operation("tfb", [
     id: "tfb_dread_guard",
     name: "The Dread Guard",
     bossNames: ["heirad", "ciphas", "kel'sara"],
+    bossNpcIds: [
+      "3013374824677376", "3013327580037120", "3013409184415744", "2831414240215040", "2938002443599872",
+      "3013387709579264", "3013336169971712", "3013417774350336", "2831422830149632", "2938011033534464",
+      "3013379119644672", "3013331875004416", "3013413479383040", "2831418535182336", "2938006738567168",
+    ],
     victoryRequires: ["heirad", "ciphas", "kel'sara"],
     adds: ["Dread Tendril"],
     phases: [
@@ -323,6 +357,7 @@ const TFB = operation("tfb", [
     id: "tfb_operator_ix",
     name: "Operator IX",
     bossNames: ["operator ix"],
+    bossNpcIds: ["2942606648541184", "2836319092867072", "2836314797899776", "2994859220664320", "2994837745827840", "3725128215035904", "2994850630729728"],
     adds: ["Regulator", "Shield Recon Drone", "Decontamination Droid"],
     phases: [
       p(1, "Core Color Deletion Puzzle", "Terminal Sequencing", "Encounter start"),
@@ -340,6 +375,8 @@ const TFB = operation("tfb", [
     id: "tfb_kephess_the_undying",
     name: "Kephess the Undying",
     bossNames: ["kephess the undying"],
+    bossNpcIds: ["2937620191510528", "3013121421606912", "3013138601476096", "3013134306508800", "2831409945247744"],
+    addNpcIds: ["3013095651803136", "3013104241737728"],
     adds: ["Corrupted Energy Entity"],
     phases: [
       p(1, "Hypergate Pylon Pulses", "Pylon Alignment", "Encounter start"),
@@ -357,6 +394,11 @@ const TFB = operation("tfb", [
     id: "tfb_terror_from_beyond",
     name: "The Terror From Beyond",
     bossNames: ["the terror from beyond", "terror from beyond"],
+    bossNpcIds: [
+      "2938887206862848", "3025224639447040", "3025220344479744", "3025228934414336",
+      "3025233229381632", "2978340776443904", "302523752434898", "3025241819316224",
+    ],
+    addNpcIds: ["3025289063956480", "2988545618739200", "3025293358923776", "3025284768989184"],
     adds: ["Grasping Tentacle", "Spitting Tentacle", "Unstable Hypergate Abomination"],
     phases: [
       p(1, "First Platform & Tentacles", "Island Warfare", "Encounter start"),
@@ -522,6 +564,7 @@ const DF = operation("df", [
     id: "df_nefra",
     name: "Nefra, Who Bars the Way",
     bossNames: ["nefra, who bars the way", "nefra"],
+    bossNpcIds: ["3266533082005504", "3303036009054208", "3303031714086912", "3303040304021504"],
     adds: [],
     phases: [p(1, "Tank Cleave & Cleansing", "Dot Management", "Encounter start")],
     wipeMechanics: [
@@ -536,6 +579,8 @@ const DF = operation("df", [
     id: "df_gate_commander_draxus",
     name: "Gate Commander Draxus",
     bossNames: ["gate commander draxus", "draxus"],
+    bossNpcIds: ["3273924720721920", "3303401081274368", "3303392491339776", "3303405376241664"],
+    addNpcIds: ["3288029393321984", "3281329244340224", "3288136767504384"],
     adds: ["Subterfuge Droid", "Dismantler", "Corruptor", "Guardian"],
     phases: [p(1, "Defensive Waves 1-9", "Sequential Waves", "Boss drops shield and departs")],
     wipeMechanics: [
@@ -550,6 +595,7 @@ const DF = operation("df", [
     id: "df_grobthok",
     name: "Grob'thok, Who Feeds the Forge",
     bossNames: ["grob'thok, who feeds the forge", "grob'thok"],
+    bossNpcIds: ["3302567857618944", "3302559267684352", "3273929015689216", "3302563562651648"],
     adds: ["Ugnaught Miner", "Forged Roamer"],
     phases: [p(1, "Smelting Furnace Positioning", "Magnet Protocol", "Encounter start")],
     wipeMechanics: [
@@ -564,6 +610,7 @@ const DF = operation("df", [
     id: "df_corruptor_zero",
     name: "Corruptor Zero",
     bossNames: ["corruptor zero"],
+    bossNpcIds: ["3273933310656512", "3303542815195136", "3303534225260544", "3303551405129728"],
     adds: ["Corrupted Anti-Personnel Droid", "Corrupted Combat Droid"],
     phases: [
       p(1, "Calibration Waves", "Add Waves", "Encounter start to 20%"),
@@ -581,6 +628,8 @@ const DF = operation("df", [
     id: "df_dread_master_brontes",
     name: "Dread Master Brontes",
     bossNames: ["dread master brontes", "brontes"],
+    bossNpcIds: ["3273937605623808", "3303538520227840", "3303529930293248", "3303547110162432"],
+    addNpcIds: ["3275642707640320", "3303289412124672", "3280057934020608"],
     adds: ["Finger of Brontes", "Corrupted Clone", "Energy Sphere"],
     phases: [
       p(1, "Hands & Energy Orbs", "Orb Popping", "Encounter start"),
@@ -603,6 +652,8 @@ const DP = operation("dp", [
     id: "dp_bestia",
     name: "Dread Master Bestia",
     bossNames: ["dread master bestia", "bestia"],
+    bossNpcIds: ["3273941900591104", "3303581469900800", "3303585764868096", "3303590059835392"],
+    addNpcIds: ["3291675820556288"],
     adds: ["Dread Larva", "Dread Monster"],
     phases: [
       p(1, "Monster Summoning Waves", "Add Spawning", "Encounter start"),
@@ -620,6 +671,7 @@ const DP = operation("dp", [
     id: "dp_tyrans",
     name: "Dread Master Tyrans",
     bossNames: ["dread master tyrans", "tyrans"],
+    bossNpcIds: ["3273954785492992", "3303409671208960", "3303413966176256", "3303418261143552"],
     adds: [],
     phases: [p(1, "Tactical Tile Removal Grid", "Floor Management", "Encounter start")],
     wipeMechanics: [
@@ -634,6 +686,7 @@ const DP = operation("dp", [
     id: "dp_calphayus",
     name: "Dread Master Calphayus",
     bossNames: ["dread master calphayus", "calphayus"],
+    bossNpcIds: ["3273946195558400", "3284949901770752", "3284954196738048"],
     adds: ["Corrupted Vision", "Energy Crystal"],
     phases: [
       p(1, "Present Realm", "Baseline", "Encounter start"),
@@ -651,6 +704,7 @@ const DP = operation("dp", [
     id: "dp_raptus",
     name: "Dread Master Raptus",
     bossNames: ["dread master raptus", "raptus"],
+    bossNpcIds: ["3303555700097024", "3273950490525696", "3303559995064320", "3302902865068032"],
     adds: ["Shadow of Raptus"],
     phases: [p(1, "Trial Portals & Ground Duel", "Role Challenges", "Encounter start")],
     wipeMechanics: [
@@ -670,6 +724,7 @@ const DP = operation("dp", [
       "dread master calphayus",
       "dread master raptus",
     ],
+    bossNpcIds: ["3273984850264064", "3273997735165952", "3273989145231360", "3273993440198656", "3274019210002432"],
     victoryRequires: [
       "dread master bestia",
       "dread master tyrans",
@@ -697,6 +752,7 @@ const RAV = operation("rav", [
     id: "rav_sparky",
     name: "Sparky",
     bossNames: ["sparky"],
+    bossNpcIds: ["3458114393210880", "3367555007774720", "3458122983145472", "3458110098243584"],
     adds: ["Sparky's Broodling", "Pack Hunter"],
     phases: [p(1, "Delicious Stacks & Pounce", "Tank Swap", "Encounter start")],
     wipeMechanics: [
@@ -711,6 +767,7 @@ const RAV = operation("rav", [
     id: "rav_quartermaster_bulo",
     name: "Quartermaster Bulo",
     bossNames: ["quartermaster bulo", "bulo"],
+    bossNpcIds: ["3468701487595520", "3371446248144896", "3468697192628224", "3468705782562816"],
     adds: ["Pirate Loader", "Deckhand Sniper"],
     phases: [p(1, "Barrel Toss & Cart Moving", "Kiting", "Encounter start")],
     wipeMechanics: [
@@ -725,6 +782,7 @@ const RAV = operation("rav", [
     id: "rav_torque",
     name: "Torque",
     bossNames: ["torque"],
+    bossNpcIds: ["3468714372497408", "3397005598523392", "3468718667464704", "3468710077530112"],
     adds: ["Shoots-Lasers Droid", "Maintenance Droid", "Disrepair Console"],
     phases: [p(1, "Ship Console Defense", "Console Management", "Encounter start")],
     wipeMechanics: [
@@ -739,6 +797,7 @@ const RAV = operation("rav", [
     id: "rav_master_and_blaster",
     name: "Master & Blaster",
     bossNames: ["master", "blaster"],
+    bossNpcIds: ["3725149689872384", "3391095723524096", "3462181727240192", "3462186022207488", "3458148752949248", "3391100018491392"],
     victoryRequires: ["master", "blaster"],
     adds: ["Ion Cutter Droid", "Resonance Mine"],
     phases: [
@@ -758,6 +817,9 @@ const RAV = operation("rav", [
     id: "rav_coratanni",
     name: "Coratanni & Ruugar",
     bossNames: ["coratanni", "ruugar"],
+    bossNpcIds: ["3619433364848640", "3371437658210304", "3371441953177600", "3397039958261760"],
+    addNpcIds: ["3374109127868416"],
+    singleInstanceBossNames: ["coratanni", "ruugar", "pearl"],
     adds: ["Pearl", "Ruugar's Smuggled Droid"],
     phases: [
       p(1, "Bridge Battle", "Deck Combat", "Encounter start; push Coratanni to 20%"),
@@ -778,6 +840,7 @@ const TOS = operation("tos", [
     id: "tos_malaphar",
     name: "Malaphar the Savage",
     bossNames: ["malaphar the savage", "malaphar"],
+    bossNpcIds: ["3469281308180480", "3431245077807104", "3469285603147776", "3469277013213184"],
     adds: ["Savage Beastling"],
     phases: [p(1, "Red/Blue Ring Management", "Ring Cycling", "Encounter start")],
     wipeMechanics: [
@@ -799,6 +862,7 @@ const TOS = operation("tos", [
       "sword squadron",
     ],
     victoryRequires: ["sword squadron unit one", "sword squadron unit two"],
+    bossNpcIds: ["3468765912104960", "3468774502039552", "3468770207072256", "3447784996864000", "3447789291831296"],
     adds: ["Huge Grenadier Droid", "Shield Probe Droid"],
     phases: [p(1, "Dual Walker Defense", "Shield Switch", "Encounter start")],
     wipeMechanics: [
@@ -813,6 +877,7 @@ const TOS = operation("tos", [
     id: "tos_underlurker",
     name: "The Underlurker",
     bossNames: ["the underlurker", "underlurker"],
+    bossNpcIds: ["3411402328899584", "3462267626586112", "3462263331618816", "3462271921553408"],
     adds: ["Lurkerling", "Fallen Rock Formation"],
     phases: [p(1, "Lurkerling Spawns & Cross Collapse", "Formation Check", "Encounter start")],
     wipeMechanics: [
@@ -827,6 +892,7 @@ const TOS = operation("tos", [
     id: "tos_revanite_commanders",
     name: "Revanite Commanders",
     bossNames: ["commander derok", "commander sano", "commander kurse", "derok", "sano", "kurse"],
+    bossNpcIds: ["3456894622498816", "3456898917466112"],
     victoryRequires: ["derok", "sano", "kurse"],
     adds: ["Revanite Zealot", "Revanite Heavy Gunner"],
     phases: [p(1, "Tri-Commander Rotation", "Rotating Engagement", "Encounter start")],
@@ -842,6 +908,8 @@ const TOS = operation("tos", [
     id: "tos_revan",
     name: "Revan",
     bossNames: ["revan"],
+    bossNpcIds: ["3431605855059968", "3444310368321536", "3447583133401088"],
+    addNpcIds: ["3440805675008000"],
     adds: ["Force Aberration", "Revan's Blade", "Energy Core"],
     phases: [
       p(1, "Ground Platform Combat", "Pillars", "Encounter start to 70%"),

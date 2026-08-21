@@ -105,6 +105,8 @@ export interface Encounter {
    * collide across encounters); prefer these for classification when known.
    */
   bossNpcIds?: string[];
+  /** Verified NPC class ids for catalogued mechanic/add entities, same rationale as bossNpcIds. */
+  addNpcIds?: string[];
   /**
    * Lowercased boss names that hold exactly one live instance per pull. A new
    * instance appearing while a prior instance of the same NPC id is still

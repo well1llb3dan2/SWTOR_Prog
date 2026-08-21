@@ -50,7 +50,10 @@ function phaseThreshold(trigger: string): number | null {
  * encounters that don't have a curated id table yet.
  */
 export function classifyEncounterEntity(encounter: Encounter, name: string, npcId?: string): EncounterEntityRole {
-  if (npcId !== undefined && encounter.bossNpcIds?.includes(npcId)) return "boss";
+  if (npcId !== undefined) {
+    if (encounter.bossNpcIds?.includes(npcId)) return "boss";
+    if (encounter.addNpcIds?.includes(npcId)) return "mechanic";
+  }
   const value = normalise(name);
   if (encounter.bossNames.some((candidate) => normalise(candidate) === value)) return "boss";
   if (encounter.adds.some((candidate) => normalise(candidate) === value || value.includes(normalise(candidate)))) return "mechanic";
@@ -65,6 +68,9 @@ export function classifyCatalogEntity(name: string, npcId?: string): EncounterEn
   if (npcId !== undefined) {
     for (const encounter of ENCOUNTERS) {
       if (encounter.bossNpcIds?.includes(npcId)) return "boss";
+    }
+    for (const encounter of ENCOUNTERS) {
+      if (encounter.addNpcIds?.includes(npcId)) return "mechanic";
     }
   }
   const value = normalise(name);

@@ -629,6 +629,7 @@ export class PullAccumulator {
       victoryEvent: match.encounter.victoryEvent,
       cleared: isEncounterCleared(match.encounter, this.#deadNpcNames, this.#victoryEvidence !== null),
       bossNpcIds: match.encounter.bossNpcIds ?? [],
+      addNpcIds: match.encounter.addNpcIds ?? [],
       singleInstanceBossNames: match.encounter.singleInstanceBossNames ?? [],
       counters: match.encounter.counters ?? [],
     };
@@ -812,6 +813,7 @@ export class PullAccumulator {
         order: 0,
         bossNames: encounter.matchedBosses,
         bossNpcIds: encounter.bossNpcIds ?? [],
+        addNpcIds: encounter.addNpcIds ?? [],
         victoryRequires: [],
         adds: encounter.adds ?? [],
         phases: encounter.phases,
