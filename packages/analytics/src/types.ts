@@ -1,4 +1,4 @@
-import type { EncounterPhase } from "@swtor/game-data";
+import type { CounterDefinition, EncounterPhase } from "@swtor/game-data";
 import type { Actor, Difficulty, GroupSize, Role } from "@swtor/shared";
 
 /** The catalogued encounter a pull was matched to, if any. */
@@ -18,6 +18,10 @@ export interface EncounterRef {
   victoryEvent: string;
   /** Every required target died. */
   cleared: boolean;
+  /** Lowercased boss names eligible for single-instance reset detection. */
+  singleInstanceBossNames?: string[];
+  /** Mechanic counters tracked for this encounter. */
+  counters?: CounterDefinition[];
 }
 
 export interface RosterEntry {
@@ -88,7 +92,7 @@ export interface MetricBucket {
   damageTaken: Record<string, number>;
 }
 
-export type PullOutcome = "kill" | "wipe" | "incomplete";
+export type PullOutcome = "kill" | "wipe" | "incomplete" | "reset";
 
 /** The terminal state of a boss fight, based on encounter evidence. */
 export type BossFightOutcome = PullOutcome;
@@ -187,6 +191,8 @@ export interface BossFightSummary {
   outcome: BossFightOutcome;
   terminalEvidence: TerminalEvidence | null;
   buckets: MetricBucket[];
+  /** Final mechanic counter values tracked for this encounter (empty when none defined). */
+  counters: Record<string, number>;
 }
 
 export interface LiveBossFightSnapshot {
@@ -221,7 +227,7 @@ export interface TrashEncounterSummary {
   difficulty: Difficulty | null;
   groupSize: GroupSize | null;
   enemy: EnemyTimeline;
-  outcome: "kill" | "wipe" | "incomplete";
+  outcome: PullOutcome;
 }
 
 export type CombatTimelineEntry =

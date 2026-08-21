@@ -195,6 +195,47 @@ describe("phase and entity resolution", () => {
     expect(classifyEncounterEntity(encounter, "Dustclaw Packling")).toBe("mechanic");
   });
 
+  it("advances a phase when its deathTrigger NPC is confirmed dead", () => {
+    const encounter = {
+      ...ENCOUNTERS_BY_ID.get("snv_dashroode")!,
+      phases: [
+        { order: 1, name: "Opener", style: "Add Wave", trigger: "Encounter start" },
+        { order: 2, name: "Burn", style: "Burn", trigger: "Adds cleared", deathTrigger: "adds add" },
+      ],
+    };
+    const resolved = resolveEncounterPhase(encounter, {
+      deadNpcNames: new Set(["adds add"]),
+    });
+    expect(resolved).toBe(2);
+  });
+
+  it("blocks a phase from triggering when its guard condition fails", () => {
+    const encounter = {
+      ...ENCOUNTERS_BY_ID.get("snv_dashroode")!,
+      phases: [
+        { order: 1, name: "Opener", style: "Add Wave", trigger: "Encounter start" },
+        {
+          order: 2,
+          name: "Burn",
+          style: "Burn",
+          trigger: "50%",
+          guard: { kind: "counterCompare" as const, counterId: "adds-killed", operator: "gte" as const, value: 3 },
+        },
+      ],
+    };
+    const blocked = resolveEncounterPhase(encounter, {
+      bossHpPercent: 40,
+      conditionContext: { getCounter: () => 1, currentPhaseOrder: 1 },
+    });
+    expect(blocked).toBe(1);
+
+    const unblocked = resolveEncounterPhase(encounter, {
+      bossHpPercent: 40,
+      conditionContext: { getCounter: () => 3, currentPhaseOrder: 1 },
+    });
+    expect(unblocked).toBe(2);
+  });
+
   it("keeps catalogued mechanics inside the matched boss encounter", () => {
     const encounter = ENCOUNTERS_BY_ID.get("snv_dashroode")!;
     expect(classifyEncounterEntity(encounter, "Dash'Roode")).toBe("boss");

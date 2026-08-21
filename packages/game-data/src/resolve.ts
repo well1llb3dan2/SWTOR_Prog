@@ -2,6 +2,7 @@ import { ENCOUNTERS } from "./encounters.js";
 import { encounterIdForNpcId } from "./observed.js";
 import { OPERATIONS, OPERATIONS_BY_ID } from "./operations.js";
 import type { Encounter, Operation } from "./types.js";
+import { evaluateCondition, type ConditionContext } from "./conditions.js";
 
 export interface EncounterQuery {
   zoneId?: string | null;
@@ -27,6 +28,10 @@ export interface PhaseEvidenceQuery {
   bossHpPercent?: number | null;
   abilityName?: string | null;
   effectName?: string | null;
+  /** Lowercased names of NPCs confirmed dead so far in the pull. */
+  deadNpcNames?: Set<string>;
+  /** Backing state for phase `guard` conditions; omit if the encounter defines none. */
+  conditionContext?: ConditionContext;
 }
 
 const normalise = (value: string): string => value.trim().toLowerCase();
@@ -64,18 +69,29 @@ export function classifyCatalogEntity(name: string): EncounterEntityRole {
   return "unknown";
 }
 
-/** Resolves the highest phase supported by observed HP or named combat evidence. */
-export function resolveEncounterPhase(encounter: Encounter, query: PhaseEvidenceQuery): number {
+/**
+ * Resolves the highest phase supported by observed HP or named combat evidence.
+ *
+ * Accepts anything with a `phases` list (the only field read) so callers can
+ * pass either a full catalog `Encounter` or a lighter runtime projection of one.
+ */
+export function resolveEncounterPhase(encounter: Pick<Encounter, "phases">, query: PhaseEvidenceQuery): number {
   if (encounter.phases.length === 0) return 1;
   const evidenceText = normalise(`${query.abilityName ?? ""} ${query.effectName ?? ""}`);
   let resolved = encounter.phases[0]!.order;
   for (const phase of encounter.phases) {
+    if (phase.guard !== undefined && query.conditionContext !== undefined && !evaluateCondition(phase.guard, query.conditionContext)) {
+      continue;
+    }
     const threshold = phaseThreshold(phase.trigger);
     if (query.bossHpPercent !== null && query.bossHpPercent !== undefined && threshold !== null && query.bossHpPercent <= threshold) {
       resolved = Math.max(resolved, phase.order);
     }
     const phaseName = normalise(phase.name);
     if (evidenceText.length > 0 && (evidenceText.includes(phaseName) || evidenceText.includes(`phase ${phase.order}`))) {
+      resolved = Math.max(resolved, phase.order);
+    }
+    if (phase.deathTrigger !== undefined && query.deadNpcNames?.has(normalise(phase.deathTrigger))) {
       resolved = Math.max(resolved, phase.order);
     }
   }

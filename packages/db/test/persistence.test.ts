@@ -64,6 +64,7 @@ describe("summariseProgression", () => {
   ): BossFightDocument => ({
     id: `fight-${encounterId}-${startedAt.getTime()}`,
     fightId: 1,
+    index: 1,
     startedAt,
     endedAt: startedAt,
     durationMs: 1000,
@@ -97,6 +98,7 @@ describe("summariseProgression", () => {
       damageDealt: 0,
       deaths: outcome === "kill" ? 1 : 0,
       phases: [],
+      players: [],
     }],
     mechanicEntities: [],
     unknownEntities: [],
@@ -105,6 +107,7 @@ describe("summariseProgression", () => {
     deaths: [],
     terminalEvidence: null,
     buckets: [],
+    counters: {},
   });
 
   it("counts attempts and kills per encounter", () => {
@@ -153,6 +156,7 @@ describe("toBossFightDocument", () => {
         deaths: [],
         terminalEvidence: null,
         buckets: [{ index: 0, startedAt: 1_000, damage: {}, healing: {}, damageTaken: {} }],
+        counters: {},
       },
       7,
     );

@@ -1,5 +1,6 @@
-import { classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase } from "@swtor/game-data";
+import { classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
+import { detectSingleInstanceReset } from "./reset.js";
 import {
   isNpc,
   isPlayer,
@@ -157,6 +158,8 @@ export class PullAccumulator {
   readonly #bossThreshold: BossThreshold;
   #currentPhaseOrder = 1;
   #peakPlayerMaxHp = 0;
+  readonly #counters = new Map<string, number>();
+  #resetDetectedAt: number | null = null;
 
   constructor(
     id: string,
@@ -177,6 +180,53 @@ export class PullAccumulator {
     return this.#lastActivityAt;
   }
 
+  /** Increments a mechanic counter (created at 0 on first use) and returns the new value. */
+  incrementCounter(counterId: string): number {
+    const next = (this.#counters.get(counterId) ?? 0) + 1;
+    this.#counters.set(counterId, next);
+    return next;
+  }
+
+  /** Decrements a mechanic counter, floored at 0, and returns the new value. */
+  decrementCounter(counterId: string): number {
+    const next = Math.max(0, (this.#counters.get(counterId) ?? 0) - 1);
+    this.#counters.set(counterId, next);
+    return next;
+  }
+
+  /** Resets a mechanic counter to a specific value (0 by default). */
+  resetCounter(counterId: string, value = 0): void {
+    this.#counters.set(counterId, value);
+  }
+
+  /** Current value of a mechanic counter (0 if never touched). */
+  getCounter(counterId: string): number {
+    return this.#counters.get(counterId) ?? 0;
+  }
+
+  #conditionContext(): ConditionContext {
+    return {
+      getCounter: (counterId: string) => this.getCounter(counterId),
+      currentPhaseOrder: this.#currentPhaseOrder,
+    };
+  }
+
+  /** Increments any encounter-defined counters whose ability/effect trigger matched this event. */
+  #observeCounters(abilityName: string | null, effectName: string | null): void {
+    const encounter = this.#encounter();
+    const counters = encounter?.counters;
+    if (counters === undefined || counters.length === 0) return;
+    for (const def of counters) {
+      const abilityMatch = def.incrementOnAbility !== undefined
+        && abilityName !== null
+        && abilityName.toLowerCase().includes(def.incrementOnAbility.toLowerCase());
+      const effectMatch = def.incrementOnEffect !== undefined
+        && effectName !== null
+        && effectName.toLowerCase().includes(def.incrementOnEffect.toLowerCase());
+      if (abilityMatch || effectMatch) this.incrementCounter(def.id);
+    }
+  }
+
   add(event: CombatEvent): void {
     this.#observeHealth(event);
     this.#observeVictoryEvent(event);
@@ -184,6 +234,7 @@ export class PullAccumulator {
     switch (event.type) {
       case "damage":
         this.#observePhase(event.timestamp, event.target, event.ability?.name ?? null, null);
+        this.#observeCounters(event.ability?.name ?? null, null);
         this.#addDamage(
           event.timestamp,
           event.source,
@@ -207,6 +258,10 @@ export class PullAccumulator {
         this.#observePhase(
           event.timestamp,
           event.target,
+          event.type === "ability" ? event.ability?.name ?? null : null,
+          event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
+        );
+        this.#observeCounters(
           event.type === "ability" ? event.ability?.name ?? null : null,
           event.type === "applyEffect" || event.type === "removeEffect" ? event.effect.name : null,
         );
@@ -384,7 +439,7 @@ export class PullAccumulator {
         enemyPhaseState = { totals: emptyTotals(source.playerId, source.name), firstActionAt: timestamp, lastActionAt: timestamp };
         enemyPhaseState.totals.role = enemyPlayer.totals.role;
         enemyPhaseState.totals.discipline = enemyPlayer.totals.discipline;
-        enemyPhaseState.totals.combatStyle = enemyPlayer.totals.combatStyle;
+        enemyPhaseState.totals.combatStyle = enemyPlayer.totals.combatStyle ?? null;
         enemyPlayer.phaseTotals.set(this.#currentPhaseOrder, enemyPhaseState);
       } else {
         enemyPhaseState.lastActionAt = timestamp;
@@ -468,6 +523,15 @@ export class PullAccumulator {
     const instanceId = actor.instanceId ?? actor.npcId;
     let enemy = this.#enemies.get(instanceId);
     if (enemy === undefined) {
+      if (this.#resetDetectedAt === null) {
+        const singleInstanceBossNames = this.#encounter()?.singleInstanceBossNames ?? [];
+        const isReset = detectSingleInstanceReset(
+          [...this.#enemies.values()].map((e) => ({ npcId: e.npcId, instanceId: e.instanceId, diedAt: e.diedAt })),
+          { npcId: actor.npcId, instanceId, name: actor.name },
+          singleInstanceBossNames,
+        );
+        if (isReset) this.#resetDetectedAt = timestamp;
+      }
       enemy = {
         instanceId,
         npcId: actor.npcId,
@@ -564,6 +628,8 @@ export class PullAccumulator {
       phases: match.encounter.phases,
       victoryEvent: match.encounter.victoryEvent,
       cleared: isEncounterCleared(match.encounter, this.#deadNpcNames, this.#victoryEvidence !== null),
+      singleInstanceBossNames: match.encounter.singleInstanceBossNames ?? [],
+      counters: match.encounter.counters ?? [],
     };
   }
 
@@ -605,7 +671,13 @@ export class PullAccumulator {
     const targetHpPercent = isNpc(target) && target.hp !== null && target.maxHp && target.maxHp > 0
       ? (target.hp / target.maxHp) * 100
       : null;
-    const order = resolveEncounterPhase(encounter, { bossHpPercent: targetHpPercent, abilityName, effectName });
+    const order = resolveEncounterPhase(encounter, {
+      bossHpPercent: targetHpPercent,
+      abilityName,
+      effectName,
+      deadNpcNames: this.#deadNpcNames,
+      conditionContext: this.#conditionContext(),
+    });
     if (!this.#phaseStartedAt.has(1)) this.#phaseStartedAt.set(1, this.startedAt);
     const previous = Math.max(...this.#phaseStartedAt.keys());
     if (order <= previous) return;
@@ -674,6 +746,10 @@ export class PullAccumulator {
     } else if (boss !== null && this.#deadNpcIds.has(boss.npcId)) {
       return "kill";
     }
+
+    // 1b. A detected single-instance boss reset means this attempt never
+    // reached a real kill or wipe; the room reset and play continued.
+    if (this.#resetDetectedAt !== null) return "reset";
 
     // 2. Wipe detection:
     const died = new Set(this.#deaths.map((d) => d.playerId));
@@ -813,6 +889,7 @@ export class PullAccumulator {
       outcome,
       terminalEvidence,
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
+      counters: Object.fromEntries(this.#counters),
     };
   }
 
@@ -825,6 +902,15 @@ export class PullAccumulator {
         detail: encounter.cleared ? "All required encounter targets were defeated." : "A boss entity was defeated.",
         actorIds: [],
         npcIds: [...this.#deadNpcIds],
+      };
+    }
+    if (outcome === "reset") {
+      return {
+        kind: "encounter-reset" as const,
+        timestamp,
+        detail: "A single-instance boss reset was detected; the attempt restarted rather than concluding in a kill or wipe.",
+        actorIds: [],
+        npcIds: [],
       };
     }
     if (outcome === "wipe") {

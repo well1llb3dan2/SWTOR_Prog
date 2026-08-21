@@ -35,6 +35,7 @@ function pull(over: Partial<PullSummary> = {}): PullSummary {
       cleared: true,
     },
     outcome: "kill",
+    enemyTimelines: [],
     roster: [
       {
         playerId: "1",
@@ -107,6 +108,7 @@ function pull(over: Partial<PullSummary> = {}): PullSummary {
         damageDealt: 0,
         deaths: 1,
         phases: [],
+        players: [],
       }],
       mechanicEntities: [],
       unknownEntities: [],
@@ -116,6 +118,7 @@ function pull(over: Partial<PullSummary> = {}): PullSummary {
       outcome: "kill",
       terminalEvidence: null,
       buckets: [],
+      counters: {},
     },
     ...over,
   };

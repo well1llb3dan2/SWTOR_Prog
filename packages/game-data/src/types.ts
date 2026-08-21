@@ -1,4 +1,5 @@
 import type { Difficulty, GroupSize } from "@swtor/shared";
+import type { Condition } from "./conditions.js";
 
 export type OperationId =
   | "ev"
@@ -53,6 +54,20 @@ export interface EncounterPhase {
   style: string;
   /** What moves the fight into this phase. */
   trigger: string;
+  /** Lowercased NPC name whose death also advances the fight into this phase. */
+  deathTrigger?: string;
+  /** Must evaluate true (against live counters/phase state) for this phase to trigger. */
+  guard?: Condition;
+}
+
+/** A per-encounter tally driven by ability/effect events, for mechanic counting and phase guards. */
+export interface CounterDefinition {
+  id: string;
+  name: string;
+  /** Ability name (case-insensitive substring match) that increments this counter. */
+  incrementOnAbility?: string;
+  /** Effect name (case-insensitive substring match) that increments this counter. */
+  incrementOnEffect?: string;
 }
 
 export interface WipeMechanic {
@@ -84,6 +99,14 @@ export interface Encounter {
   phases: EncounterPhase[];
   wipeMechanics: WipeMechanic[];
   victoryEvent: string;
+  /**
+   * Lowercased boss names that hold exactly one live instance per pull. A new
+   * instance appearing while a prior instance of the same NPC id is still
+   * alive means the attempt reset rather than wiped or was killed.
+   */
+  singleInstanceBossNames?: string[];
+  /** Mechanic counters tracked for this encounter (empty for most). */
+  counters?: CounterDefinition[];
 }
 
 export interface Operation {
