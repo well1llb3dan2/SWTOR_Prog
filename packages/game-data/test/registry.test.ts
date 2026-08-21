@@ -6,6 +6,7 @@ import {
   BARAS_INTERRUPT_ABILITY_IDS,
   BARAS_OFF_GCD_ABILITY_IDS,
   BARAS_DISCIPLINE_ABILITIES,
+  BARAS_ATTACK_TYPES,
   canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
@@ -37,6 +38,12 @@ describe("registry integrity", () => {
     expect(BARAS_DISCIPLINE_ABILITIES.length).toBeGreaterThan(90);
     expect(BARAS_DISCIPLINE_ABILITIES.every((entry) => /^\d{12,}$/.test(entry.abilityId))).toBe(true);
     expect(BARAS_DISCIPLINE_ABILITIES.some((entry) => entry.discipline === "Pyrotech")).toBe(true);
+  });
+
+  it("loads BARAS attack types with numeric ability ids", () => {
+    expect(BARAS_ATTACK_TYPES.length).toBeGreaterThan(9000);
+    expect(BARAS_ATTACK_TYPES.every((entry) => /^\d{12,}$/.test(entry.abilityId))).toBe(true);
+    expect(BARAS_ATTACK_TYPES.some((entry) => entry.damageType === "Kinetic")).toBe(true);
   });
 
   it("uses the catalog name for known NPC ids and preserves unknown log names", () => {
