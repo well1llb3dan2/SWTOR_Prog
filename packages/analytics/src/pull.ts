@@ -1,4 +1,4 @@
-import { canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
+import { BARAS_INTERRUPT_ABILITY_IDS, canonicalNpcName, classifyCatalogEntity, classifyEncounterEntity, isEncounterCleared, NPC_CATALOG_SOURCE, NPC_CATALOG_VERSION, resolveEncounter, resolveEncounterPhase, type ConditionContext } from "@swtor/game-data";
 import { combatStyleForDiscipline, type CombatEvent, type Difficulty, type GroupSize, type MagnitudeValue } from "@swtor/shared";
 import { detectSingleInstanceReset } from "./reset.js";
 import {
@@ -13,6 +13,7 @@ import {
   type EnemyTimeline,
   type EnemyPlayerMetrics,
   type EncounterRef,
+  type InterruptRecord,
   type LivePullState,
   type LiveBossFightSnapshot,
   type MetricBucket,
@@ -155,6 +156,7 @@ export class PullAccumulator {
   readonly #deadNpcIds = new Set<string>();
   readonly #deadNpcNames = new Set<string>();
   readonly #deaths: DeathRecord[] = [];
+  readonly #interrupts: InterruptRecord[] = [];
   readonly #lastHitOnPlayer = new Map<string, KillingBlow>();
   readonly #participants = new Set<string>();
   readonly #bossThreshold: BossThreshold;
@@ -257,6 +259,17 @@ export class PullAccumulator {
       case "applyEffect":
       case "removeEffect":
       case "ability":
+        if (event.type === "ability" && event.phase === "interrupt" && event.ability !== null && BARAS_INTERRUPT_ABILITY_IDS.has(event.ability.id)) {
+          this.#interrupts.push({
+            timestamp: event.timestamp,
+            abilityId: event.ability.id,
+            abilityName: event.ability.name,
+            sourceId: event.source?.kind === "player" ? event.source.playerId : null,
+            sourceName: event.source?.kind === "player" ? event.source.name : null,
+            targetNpcId: event.target?.kind === "npc" ? event.target.npcId : null,
+            targetName: event.target?.kind === "npc" ? canonicalNpcName(event.target.npcId, event.target.name).name : null,
+          });
+        }
         this.#observePhase(
           event.timestamp,
           event.target,
@@ -905,6 +918,7 @@ export class PullAccumulator {
       terminalEvidence,
       buckets: [...this.#buckets.values()].sort((a, b) => a.index - b.index),
       counters: Object.fromEntries(this.#counters),
+      interrupts: [...this.#interrupts],
       catalogSource: NPC_CATALOG_SOURCE,
       catalogVersion: NPC_CATALOG_VERSION,
     };

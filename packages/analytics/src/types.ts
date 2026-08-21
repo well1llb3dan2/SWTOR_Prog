@@ -122,6 +122,16 @@ export interface TerminalEvidence {
   npcIds: string[];
 }
 
+export interface InterruptRecord {
+  timestamp: number;
+  abilityId: string;
+  abilityName: string;
+  sourceId: string | null;
+  sourceName: string | null;
+  targetNpcId: string | null;
+  targetName: string | null;
+}
+
 export type EnemyRole = "boss" | "mechanic" | "unknown";
 
 export interface EnemyTimeline {
@@ -202,6 +212,7 @@ export interface BossFightSummary {
   buckets: MetricBucket[];
   /** Final mechanic counter values tracked for this encounter (empty when none defined). */
   counters: Record<string, number>;
+  interrupts: InterruptRecord[];
   catalogSource?: string;
   catalogVersion?: string;
 }
