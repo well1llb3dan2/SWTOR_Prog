@@ -1,5 +1,6 @@
 import { ENCOUNTERS } from "./encounters.js";
 import { encounterIdForNpcId } from "./observed.js";
+import { NPC_CATALOG_BY_ID } from "./npc-catalog.js";
 import { OPERATIONS, OPERATIONS_BY_ID } from "./operations.js";
 import type { Encounter, Operation } from "./types.js";
 import { evaluateCondition, type ConditionContext } from "./conditions.js";
@@ -53,6 +54,8 @@ export function classifyEncounterEntity(encounter: Encounter, name: string, npcI
   if (npcId !== undefined) {
     if (encounter.bossNpcIds?.includes(npcId)) return "boss";
     if (encounter.addNpcIds?.includes(npcId)) return "mechanic";
+    const catalogRole = NPC_CATALOG_BY_ID.get(npcId)?.role;
+    if (catalogRole !== undefined) return catalogRole;
   }
   const value = normalise(name);
   if (encounter.bossNames.some((candidate) => normalise(candidate) === value)) return "boss";
@@ -66,6 +69,8 @@ export function classifyEncounterEntity(encounter: Encounter, name: string, npcI
  */
 export function classifyCatalogEntity(name: string, npcId?: string): EncounterEntityRole {
   if (npcId !== undefined) {
+    const catalogRole = NPC_CATALOG_BY_ID.get(npcId)?.role;
+    if (catalogRole !== undefined) return catalogRole;
     for (const encounter of ENCOUNTERS) {
       if (encounter.bossNpcIds?.includes(npcId)) return "boss";
     }
@@ -184,7 +189,7 @@ export function isEncounterCleared(
   const deadIds = new Set(deadNpcIds);
   const idCleared = encounter.bossNpcIds?.some((id) => deadIds.has(id)) ?? false;
 
-  if (idCleared && required.every((name) => !dead.has(name))) return true;
+  if (required.length === 1 && idCleared && required.every((name) => !dead.has(name))) return true;
 
   return encounter.victoryRequires.length > 0
     ? required.every((name) => dead.has(name))

@@ -423,7 +423,7 @@ export class PullAccumulator {
 
     if (isPlayer(source) && isNpc(target)) {
       this.#engagedNpcIds.add(target.npcId);
-      this.#engagedNpcNames.add(target.name);
+        this.#engagedNpcNames.add(canonicalNpcName(target.npcId, target.name).name);
       this.#participants.add(source.playerId);
       const totals = this.#totalsFor(source.playerId, source.name);
       totals.damage += applied;
@@ -499,6 +499,7 @@ export class PullAccumulator {
 
     if (isNpc(victim)) {
       this.#deadNpcIds.add(victim.npcId);
+      this.#deadNpcNames.add(victim.name);
       this.#deadNpcNames.add(canonicalNpcName(victim.npcId, victim.name).name);
       const enemy = this.#enemyFor(victim, event.timestamp);
       enemy.diedAt = event.timestamp;

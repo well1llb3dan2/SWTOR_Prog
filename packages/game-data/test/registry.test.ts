@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ENCOUNTERS,
   ENCOUNTERS_BY_ID,
+  BARAS_NPC_CATALOG,
   canonicalNpcName,
   OPERATIONS,
   isEncounterCleared,
@@ -13,6 +14,12 @@ import {
 } from "@swtor/game-data";
 
 describe("registry integrity", () => {
+  it("loads the generated BARAS NPC catalog with unique numeric ids", () => {
+    expect(BARAS_NPC_CATALOG.length).toBeGreaterThan(700);
+    expect(new Set(BARAS_NPC_CATALOG.map((entry) => entry.npcId)).size).toBe(BARAS_NPC_CATALOG.length);
+    expect(BARAS_NPC_CATALOG.every((entry) => /^\d{12,}$/.test(entry.npcId))).toBe(true);
+  });
+
   it("uses the catalog name for known NPC ids and preserves unknown log names", () => {
     expect(canonicalNpcName("3153558262251520", "UNKNOWN")).toEqual({ name: "Dash'Roode", source: "catalog" });
     expect(canonicalNpcName("not-in-catalog", "UNKNOWN")).toEqual({ name: "UNKNOWN", source: "log" });
