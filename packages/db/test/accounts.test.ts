@@ -76,6 +76,7 @@ describe("toPublicUser", () => {
     roles: ["role-a"],
     isMember: true,
     isModerator: true,
+    signupPreferences: { preferredRole: null, notes: null, availabilityWindow: null },
     characters: [
       {
         playerId: "688363584125440",

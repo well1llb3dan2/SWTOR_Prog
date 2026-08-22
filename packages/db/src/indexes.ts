@@ -28,6 +28,20 @@ export function buildIndexPlan(_retentionDays: number | null): IndexPlan[] {
       ],
     },
     {
+      collection: COLLECTIONS.reportFights,
+      indexes: [
+        { key: { guildId: 1, reportCode: 1, eventId: 1 }, name: "report_fight_identity", unique: true },
+        { key: { guildId: 1, reportCode: 1, startedAt: 1 }, name: "report_fight_timeline" },
+      ],
+    },
+    {
+      collection: COLLECTIONS.fightEventBuckets,
+      indexes: [
+        { key: { guildId: 1, reportCode: 1, eventId: 1, bucketIndex: 1, part: 1 }, name: "fight_event_bucket_identity", unique: true },
+        { key: { expiresAt: 1 }, name: "fight_event_bucket_ttl", expireAfterSeconds: 0, sparse: true },
+      ],
+    },
+    {
       collection: USER_COLLECTIONS.users,
       indexes: [
         { key: { discordId: 1 }, name: "user_discord", unique: true },

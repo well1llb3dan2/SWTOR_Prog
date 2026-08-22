@@ -1,4 +1,6 @@
 import type { LivePullState, BossFightSummary, TrashEncounterSummary } from "@swtor/analytics";
+import type { CombatEvent } from "@swtor/shared";
+import { createHash } from "node:crypto";
 
 export interface ApiHealth {
   status: string;
@@ -25,6 +27,17 @@ export interface DetectedCharacterInput {
   discordUserId?: string | null;
   occurredAt?: string;
 }
+
+type ProgressionPullInput = {
+  id: string;
+  index: number;
+  startedAt: number;
+  endedAt: number;
+  difficulty: BossFightSummary["difficulty"];
+  encounter: { encounterId: string; encounterName: string; operationId?: string; operationName?: string };
+  outcome: BossFightSummary["outcome"];
+  events?: CombatEvent[];
+};
 
 export function normalizeBaseUrl(serverUrl: string): string {
   let url = (serverUrl || "").trim().replace(/\/+$/, "");
@@ -158,11 +171,12 @@ export async function reportDetectedCharacter(
 export async function reportProgressionPull(
   serverUrl: string,
   token: string,
-  fight: BossFightSummary,
+  fight: ProgressionPullInput,
   localCharacterName: string,
   serverId?: string | null,
   fetchImpl: typeof fetch = fetch,
   logFileName?: string | null,
+  rawEvents?: CombatEvent[],
 ): Promise<{ accepted: boolean; encounterName: string; outcome: string }> {
   const baseUrl = normalizeBaseUrl(serverUrl);
   const url = `${baseUrl}/api/progression/ingest`;
@@ -171,6 +185,7 @@ export async function reportProgressionPull(
   const encounterName = bossFight.encounter.encounterName;
   const outcome = bossFight.outcome;
   const occurredAt = new Date(fight.endedAt || Date.now()).toISOString();
+  const eventId = createHash("sha256").update(JSON.stringify({ version: "3.0", id: fight.id, logFileName: logFileName ?? null, startedAt: fight.startedAt, endedAt: fight.endedAt })).digest("hex");
 
   const response = await fetchImpl(url, {
     method: "POST",
@@ -180,12 +195,19 @@ export async function reportProgressionPull(
     },
     body: JSON.stringify({
       schema: "progression-event",
-      version: "2.0",
+      version: "3.0",
       guildId: "default",
       generatedAt: new Date().toISOString(),
       source: "SWTOR_Prog",
       visibility: "guild",
       event: {
+        eventId,
+        sessionId: logFileName ?? undefined,
+        logFileId: logFileName ?? undefined,
+        pullId: fight.id,
+        pullIndex: fight.index,
+        startedAt: new Date(fight.startedAt).toISOString(),
+        endedAt: new Date(fight.endedAt).toISOString(),
         encounterId,
         encounterName,
         outcome,
@@ -195,7 +217,7 @@ export async function reportProgressionPull(
         difficulty: fight.difficulty ?? undefined,
         occurredAt,
         details: {
-          bossFight,
+          bossFight: { ...bossFight, rawEvents },
         },
       },
     }),
@@ -219,17 +241,24 @@ export async function reportTrashEncounter(
 ): Promise<void> {
   const url = `${normalizeBaseUrl(serverUrl)}/api/progression/ingest`;
   const encounterId = `trash:${fight.enemy.instanceId}`;
+  const eventId = createHash("sha256").update(JSON.stringify({ version: "3.0", id: fight.id, logFileName: logFileName ?? null, startedAt: fight.startedAt, endedAt: fight.endedAt })).digest("hex");
   const response = await fetchImpl(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}`, "x-swtor-prog-token": token } : {}) },
     body: JSON.stringify({
       schema: "progression-event",
-      version: "2.0",
+      version: "3.0",
       guildId: "default",
       generatedAt: new Date().toISOString(),
       source: "SWTOR_Prog",
       visibility: "guild",
       event: {
+        eventId,
+        sessionId: logFileName ?? undefined,
+        logFileId: logFileName ?? undefined,
+        pullId: fight.id,
+        startedAt: new Date(fight.startedAt).toISOString(),
+        endedAt: new Date(fight.endedAt).toISOString(),
         encounterId,
         encounterName: fight.enemy.name,
         outcome: fight.outcome,

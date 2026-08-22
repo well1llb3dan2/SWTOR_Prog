@@ -68,6 +68,7 @@ export class CombatSession {
   #pullIndex = 0;
   #exitPendingSince: number | null = null;
   #lastClosedAt: number | null = null;
+  #currentEvents: CombatEvent[] = [];
 
   constructor(options: CombatSessionOptions = {}) {
     this.#options = { ...DEFAULTS, ...options };
@@ -132,6 +133,8 @@ export class CombatSession {
         } else {
           this.#exitPendingSince = event.timestamp;
         }
+        this.#current?.add(event);
+        this.#currentEvents.push(event);
         return;
 
       default:
@@ -142,12 +145,14 @@ export class CombatSession {
 
     if (!isActivity(event)) {
       this.#current?.add(event);
+      if (this.#current) this.#currentEvents.push(event);
       return;
     }
 
     this.#open(event.timestamp);
     this.#exitPendingSince = null;
     this.#current?.add(event);
+    if (this.#current) this.#currentEvents.push(event);
   }
 
   /** Lets an idle pull close when the stream has gone quiet. */
@@ -218,6 +223,8 @@ export class CombatSession {
     this.#lastClosedAt = endedAt;
 
     const summary = pull.finish(Math.max(endedAt, pull.startedAt), endReason);
+    const events = this.#currentEvents;
+    this.#currentEvents = [];
     const meaningful =
       summary.durationMs >= this.#options.minPullDurationMs &&
       summary.actors.some((a) => a.damage > 0);
@@ -226,8 +233,8 @@ export class CombatSession {
       return;
     }
 
-    this.#completed.push(summary);
-    this.#options.onPullEnd?.(summary);
+    this.#completed.push({ ...summary, events });
+    this.#options.onPullEnd?.({ ...summary, events });
   }
 }
 

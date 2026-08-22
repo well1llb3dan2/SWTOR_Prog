@@ -104,8 +104,12 @@ export class LogTailer {
 
     const stats = await stat(newest.path);
     if (stats.size < this.#offset) {
-      // The file shrank, so it was replaced or truncated under us.
+      // The file shrank, so it was replaced or truncated under us. Treat this
+      // as a fresh generation and notify listeners so the parser can detach from
+      // the prior session before it re-reads from the beginning of the file.
       this.#reset(newest.path);
+      this.#offset = 0;
+      await this.#options.onFileChange?.(newest);
     }
     if (stats.size === this.#offset) return;
 

@@ -1,5 +1,5 @@
 import type { CounterDefinition, EncounterPhase } from "@swtor/game-data";
-import type { Actor, Difficulty, GroupSize, Role } from "@swtor/shared";
+import type { Actor, CombatEvent, Difficulty, GroupSize, Role } from "@swtor/shared";
 
 /** The catalogued encounter a pull was matched to, if any. */
 export interface EncounterRef {
@@ -382,6 +382,8 @@ export interface PullSummary {
   /** Authoritative boss-centric representation of this pull, when catalogued. */
   bossFight: BossFightSummary | null;
   enemyTimelines: EnemyTimeline[];
+  /** Raw events for durable audit retention; scoped to this pull only. */
+  events?: CombatEvent[];
 }
 
 export interface LivePullState {

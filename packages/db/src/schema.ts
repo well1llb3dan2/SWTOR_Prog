@@ -1,4 +1,5 @@
 import type { BossFightSummary, RosterEntry } from "@swtor/analytics";
+import type { CombatEvent } from "@swtor/shared";
 import type { Difficulty, GroupSize, RosterLimits, Signup } from "@swtor/shared";
 
 /**
@@ -37,6 +38,28 @@ export interface BossFightDocument extends Omit<BossFightSummary, "startedAt" | 
   endedAt: Date;
 }
 
+/** Normalized fight document; one document per completed pull. */
+export interface NormalizedFightDocument extends BossFightDocument, Tenanted {
+  reportCode: string;
+  eventId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/** Bounded raw-event bucket retained independently from report summaries. */
+export interface FightEventBucketDocument extends Tenanted {
+  reportCode: string;
+  fightId: number;
+  eventId: string;
+  bucketIndex: number;
+  part: number;
+  startedAt: Date;
+  endedAt: Date;
+  eventCount: number;
+  events: CombatEvent[];
+  expiresAt: Date | null;
+}
+
 export type { RosterLimits, Signup, SignupStatus } from "@swtor/shared";
 
 /** Scheduled operation, kept in sync between the portal and Discord. */
@@ -64,5 +87,7 @@ export interface OperationEventDocument extends Tenanted {
 
 export const COLLECTIONS = {
   reports: "reports",
+  reportFights: "reportFights",
+  fightEventBuckets: "fightEventBuckets",
   operationEvents: "operationEvents",
 } as const;

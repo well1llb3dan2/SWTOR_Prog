@@ -31,7 +31,7 @@ export async function loadSettings(path: string): Promise<DesktopSettings> {
       !parsed.serverUrl ||
       parsed.serverUrl.includes("swtor-api.onrender.com") ||
       parsed.serverUrl.includes("infamous-command.onrender.com");
-    const serverUrl = isLegacyUrl ? defaults.serverUrl : parsed.serverUrl;
+    const serverUrl = isLegacyUrl ? defaults.serverUrl : parsed.serverUrl ?? defaults.serverUrl;
 
     return { ...defaults, ...parsed, serverUrl };
   } catch {

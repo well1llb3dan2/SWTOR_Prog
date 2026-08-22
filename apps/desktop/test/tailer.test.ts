@@ -158,6 +158,22 @@ describe("LogTailer", () => {
     expect(onLines.mock.calls.at(-1)![0]).toHaveLength(1);
   });
 
+  it("treats truncation as a new file generation and notifies listeners", async () => {
+    const path = join(dir, NAME_A);
+    await writeFile(path, `${line("21:00:00.000")}\n${line("21:00:01.000")}\n`);
+
+    const onLines = vi.fn();
+    const onFileChange = vi.fn();
+    const tailer = new LogTailer(dir, { onLines, onFileChange, startAtEnd: false });
+    await tailer.poll();
+
+    await writeFile(path, `${line("21:05:00.000")}\n`);
+    await tailer.poll();
+
+    expect(onFileChange).toHaveBeenCalledTimes(2);
+    expect(tailer.currentPath).toBe(path);
+  });
+
   it("reports an empty directory instead of throwing", async () => {
     const onFileChange = vi.fn();
     const onError = vi.fn();

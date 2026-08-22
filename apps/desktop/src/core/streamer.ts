@@ -95,11 +95,12 @@ export interface StreamerStatus {
 
 export interface LogStreamerOptions {
   directory?: string;
+  client?: unknown;
   onStatus?: (status: StreamerStatus) => void;
   onLog?: (message: string, level?: "info" | "warn" | "error") => void;
   onSnapshot?: (snapshot: LivePullState | null, inCombat: boolean) => void;
   onCharacterDetected?: (character: DetectedCharacterInput) => void;
-  onPullCompleted?: (fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null) => void;
+  onPullCompleted?: (fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null, events?: CombatEvent[]) => void;
   onTrashCompleted?: (fight: TrashEncounterSummary, characterName: string, serverId: string | null, logFileName: string | null) => void;
   tailer?: Pick<TailerOptions, "pollIntervalMs" | "startAtEnd">;
 }
@@ -112,7 +113,7 @@ export class LogStreamer {
   readonly #onLog: ((message: string, level?: "info" | "warn" | "error") => void) | undefined;
   readonly #onSnapshot: ((snapshot: LivePullState | null, inCombat: boolean) => void) | undefined;
   readonly #onCharacterDetected: ((character: DetectedCharacterInput) => void) | undefined;
-  readonly #onPullCompleted: ((fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null) => void) | undefined;
+  readonly #onPullCompleted: ((fight: BossFightSummary, characterName: string, serverId: string | null, logFileName: string | null, events?: CombatEvent[]) => void) | undefined;
   readonly #onTrashCompleted: ((fight: TrashEncounterSummary, characterName: string, serverId: string | null, logFileName: string | null) => void) | undefined;
 
   #parser: LogParser | null = null;
@@ -368,7 +369,7 @@ export class LogStreamer {
           this.#lastPullOutcome = `${bossName} (${pull.outcome})`;
           if (isBoss) {
             this.#onLog?.(`👑 Boss Encounter: ${bossName} (${pull.outcome.toUpperCase()}) in ${durationSec}s [Raid Deaths: ${pull.deaths.length}]. Syncing to Merlin...`);
-            if (pull.bossFight !== null) this.#onPullCompleted?.(pull.bossFight, characterName, this.#serverId, this.#fileName);
+            if (pull.bossFight !== null) this.#onPullCompleted?.(pull.bossFight, characterName, this.#serverId, this.#fileName, pull.events);
           } else {
             this.#onLog?.(`⚔️ Trash clear: ${bossName} in ${durationSec}s [Deaths: ${pull.deaths.length}].`);
             for (const enemy of pull.enemyTimelines.filter((entry) => entry.players.length > 0)) {
@@ -393,9 +394,12 @@ export class LogStreamer {
   }
 
   async #onFileChange(file: LogFileInfo | null): Promise<void> {
-    this.#resetSession(file?.name ?? null);
+    // Close the current combat session before resetting identity. This keeps the
+    // previous pull attached to the correct file/character rather than letting the
+    // next file replace the active state mid-close.
     this.#combat?.end();
     this.#combat = null;
+    this.#resetSession(file?.name ?? null);
 
     if (file === null) {
       this.#parser = null;

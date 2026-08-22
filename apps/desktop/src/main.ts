@@ -12,8 +12,9 @@ import {
 import { LogStreamer } from "./core/streamer.js";
 import { startDesktopAuthListener } from "./core/discordAuth.js";
 import { buildAutoUpdateFeed } from "./core/updater.js";
+import { PullOutbox, type PullOutboxItem } from "./core/pull-outbox.js";
 
-const CLIENT_VERSION = "0.2.9";
+const CLIENT_VERSION = "0.3.0";
 const distDir = __dirname;
 
 export type ConnectionState = "idle" | "connecting" | "connected" | "reconnecting" | "error";
@@ -61,6 +62,7 @@ interface AppStatus {
 let window: BrowserWindow | null = null;
 let settings: DesktopSettings;
 let streamer: LogStreamer | null = null;
+let pullOutbox: PullOutbox | null = null;
 
 const status: AppStatus = {
   revision: 0,
@@ -126,14 +128,14 @@ function getStreamer(): LogStreamer {
         fileName: s.fileName,
         zone: s.zone,
         eventsParsed: s.eventsParsed,
-        totalEvents: s.totalEvents,
+        totalEvents: s.totalEvents ?? null,
         eventsPerSecond: s.eventsPerSecond,
         unknownLines: s.unknownLines,
-        detectedCharacter: s.detectedCharacter,
-        discipline: s.discipline,
-        combatStyle: s.combatStyle,
-        activeBoss: s.activeBoss,
-        lastPullOutcome: s.lastPullOutcome,
+        detectedCharacter: s.detectedCharacter ?? null,
+        discipline: s.discipline ?? null,
+        combatStyle: s.combatStyle ?? null,
+        activeBoss: s.activeBoss ?? null,
+        lastPullOutcome: s.lastPullOutcome ?? null,
         liveDps: s.liveDps,
         liveHps: s.liveHps,
         liveDtps: s.liveDtps,
@@ -170,13 +172,13 @@ function getStreamer(): LogStreamer {
         console.warn("Character reporting to Merlin API encountered:", err);
       }
     },
-    onPullCompleted: async (fight, characterName, serverId, logFileName) => {
+    onPullCompleted: async (fight, characterName, serverId, logFileName, events) => {
       try {
+        if (!pullOutbox) throw new Error("Pull outbox is not initialized.");
         const bossName = fight.encounter.encounterName;
-        publish({ detail: `Syncing ${bossName} (${fight.outcome}) to Merlin...` });
-        await reportProgressionPull(settings.serverUrl, settings.token, fight, characterName, serverId, undefined, logFileName);
-        publish({ detail: `Synced ${bossName} (${fight.outcome}) to Merlin.` });
-        appendLog(`Synced ${bossName} (${fight.outcome}) with ${fight.players.length} players to Merlin.`);
+        await pullOutbox.enqueue({ kind: "boss", fight, characterName, serverId, logFileName, ...(events ? { events } : {}) });
+        await drainPullOutbox();
+        publish({ detail: `Queued ${bossName} (${fight.outcome}) for Merlin delivery.` });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         publish({ detail: `Pull sync to Merlin failed: ${message}` });
@@ -186,13 +188,30 @@ function getStreamer(): LogStreamer {
     },
     onTrashCompleted: async (fight, characterName, serverId, logFileName) => {
       try {
-        await reportTrashEncounter(settings.serverUrl, settings.token, fight, characterName, serverId, undefined, logFileName);
+        if (!pullOutbox) throw new Error("Pull outbox is not initialized.");
+        await pullOutbox.enqueue({ kind: "trash", fight, characterName, serverId, logFileName });
+        await drainPullOutbox();
       } catch (err) {
         appendLog(`Trash telemetry sync failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });
   return streamer;
+}
+
+async function sendPullOutboxItem(item: PullOutboxItem): Promise<void> {
+  if (item.kind === "boss") {
+    await reportProgressionPull(settings.serverUrl, settings.token, item.fight, item.characterName, item.serverId, undefined, item.logFileName, item.events);
+  } else {
+    await reportTrashEncounter(settings.serverUrl, settings.token, item.fight, item.characterName, item.serverId, undefined, item.logFileName);
+  }
+}
+
+async function drainPullOutbox(): Promise<void> {
+  if (!pullOutbox) return;
+  const before = pullOutbox.size;
+  await pullOutbox.drain(sendPullOutboxItem);
+  if (pullOutbox.size < before) appendLog(`Delivered ${before - pullOutbox.size} queued combat pull(s) to Merlin.`);
 }
 
 function teardown(): void {
@@ -276,6 +295,9 @@ function createWindow(): void {
 
 app.whenReady().then(async () => {
   settings = await loadSettings(settingsPath(app.getPath("userData")));
+  pullOutbox = new PullOutbox(join(app.getPath("userData"), "pull-outbox.json"));
+  await pullOutbox.load();
+  void drainPullOutbox();
   autoUpdater.setFeedURL(buildAutoUpdateFeed({ owner: "well1llb3dan2", repo: "SWTOR_Prog" }));
   autoUpdater.checkForUpdatesAndNotify().catch(() => undefined);
   createWindow();

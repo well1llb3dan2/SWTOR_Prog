@@ -23,6 +23,7 @@ export interface BucketInput {
   guildId: string;
   reportCode: string;
   fightId: number;
+  eventId: string;
   /** Epoch ms the fight started; bucket indices are relative to it. */
   fightStartedAt: number;
   events: CombatEvent[];
@@ -56,6 +57,7 @@ export function bucketFightEvents(
         guildId: input.guildId,
         reportCode: input.reportCode,
         fightId: input.fightId,
+        eventId: input.eventId,
         bucketIndex: index,
         part,
         startedAt: new Date(startedAt),

@@ -1,11 +1,11 @@
 import type { BossFightSummary } from "@swtor/analytics";
 import type { CombatEvent, Signup } from "@swtor/shared";
 import { MongoClient, type Collection, type Db } from "mongodb";
-import type { BucketOptions } from "./buckets.js";
+import { bucketFightEvents, mergeBuckets, type BucketOptions } from "./buckets.js";
 import { generateReportCode } from "./codes.js";
 import { ensureIndexes } from "./indexes.js";
 import { summariseProgression, toBossFightDocument, type ProgressionEntry } from "./reports.js";
-import { COLLECTIONS, type OperationEventDocument, type ReportDocument } from "./schema.js";
+import { COLLECTIONS, type FightEventBucketDocument, type NormalizedFightDocument, type OperationEventDocument, type ReportDocument } from "./schema.js";
 import { hashToken, issueToken, generateLinkCode, type IssuedToken } from "./tokens.js";
 import {
   USER_COLLECTIONS,
@@ -62,6 +62,14 @@ export class SwtorDatabase {
 
   get reports(): Collection<ReportDocument> {
     return this.#db.collection<ReportDocument>(COLLECTIONS.reports);
+  }
+
+  get reportFights(): Collection<NormalizedFightDocument> {
+    return this.#db.collection<NormalizedFightDocument>(COLLECTIONS.reportFights);
+  }
+
+  get fightEventBuckets(): Collection<FightEventBucketDocument> {
+    return this.#db.collection<FightEventBucketDocument>(COLLECTIONS.fightEventBuckets);
   }
 
   get operations(): Collection<OperationEventDocument> {
@@ -256,31 +264,69 @@ export class SwtorDatabase {
     reportCode: string,
     guildId: string,
     fight: BossFightSummary,
-    _events: readonly CombatEvent[],
+    events: readonly CombatEvent[],
   ): Promise<number> {
     const report = await this.reports.findOne({ code: reportCode, guildId });
     if (report === null) throw new Error(`Unknown report ${reportCode}`);
 
-    const fightId = report.fights.length + 1;
+    const fightId = fight.index || report.fights.length + 1;
+    const now = new Date();
+    const normalizedFight = toBossFightDocument(fight, fightId);
+    const eventId = fight.id;
+
+    await this.reportFights.updateOne(
+      { guildId, reportCode, eventId },
+      {
+        $set: {
+          ...normalizedFight,
+          guildId,
+          reportCode,
+          eventId,
+          updatedAt: now,
+        },
+        $setOnInsert: { createdAt: now },
+      },
+      { upsert: true },
+    );
+
+    const buckets = bucketFightEvents({
+      guildId,
+      reportCode,
+      fightId,
+      eventId,
+      fightStartedAt: fight.startedAt,
+      events: [...events],
+    }, this.#bucketOptions);
+    for (const bucket of buckets) {
+      await this.fightEventBuckets.updateOne(
+        { guildId, reportCode, eventId, bucketIndex: bucket.bucketIndex, part: bucket.part },
+        { $set: bucket },
+        { upsert: true },
+      );
+    }
 
     await this.reports.updateOne(
       { code: reportCode, guildId },
       {
-        $push: { fights: toBossFightDocument(fight, fightId) },
         $set: {
           endedAt: new Date(fight.endedAt),
           zone: fight.zone,
           difficulty: fight.difficulty,
           groupSize: fight.groupSize,
-          roster: fight.players.map((player) => ({
-            playerId: player.actorId,
-            serverId: null,
-            name: player.name,
-            advancedClass: player.combatStyle ?? null,
-            discipline: player.discipline,
-            role: player.role,
-          })),
-          updatedAt: new Date(),
+          updatedAt: now,
+        },
+        $addToSet: {
+          fights: normalizedFight,
+          roster: {
+            $each: fight.players.map((player) => ({
+              playerId: player.actorId,
+              serverId: null,
+              name: player.name,
+              advancedClass: player.combatStyle ?? null,
+              discipline: player.discipline,
+              role: player.role,
+            })),
+          },
         },
       },
     );
@@ -289,19 +335,24 @@ export class SwtorDatabase {
   }
 
   getReport(guildId: string, code: string): Promise<ReportDocument | null> {
-    return this.reports.findOne({ guildId, code });
+    return this.reports.findOne({ guildId, code }).then(async (report) => {
+      if (!report) return null;
+      const fights = await this.reportFights.find({ guildId, reportCode: code }).sort({ startedAt: 1, eventId: 1 }).toArray();
+      return fights.length > 0 ? { ...report, fights: fights.map(({ guildId: _guildId, reportCode: _reportCode, eventId: _eventId, createdAt: _createdAt, updatedAt: _updatedAt, ...fight }) => fight) } : report;
+    });
   }
 
   listReports(guildId: string, limit = 50): Promise<ReportDocument[]> {
-    return this.reports.find({ guildId }).sort({ startedAt: -1 }).limit(limit).toArray();
+    return this.reports.find({ guildId }).project<ReportDocument>({ fights: 0 }).sort({ startedAt: -1 }).limit(limit).toArray();
   }
 
   async getFightEvents(
-    _guildId: string,
-    _reportCode: string,
-    _fightId: number,
+    guildId: string,
+    reportCode: string,
+    fightId: number,
   ): Promise<CombatEvent[] | null> {
-    return null;
+    const buckets = await this.fightEventBuckets.find({ guildId, reportCode, fightId }).sort({ bucketIndex: 1, part: 1 }).toArray();
+    return buckets.length > 0 ? mergeBuckets(buckets) : null;
   }
 
   async progression(guildId: string): Promise<ProgressionEntry[]> {
